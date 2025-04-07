@@ -1,0 +1,3 @@
+[submodule "gopal"]
+	path = gopal
+	url = https://github.com/Principled-Evolution/gopal-argen.git
