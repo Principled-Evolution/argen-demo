@@ -1,0 +1,9 @@
+unsloth[cu121]
+trl
+accelerate
+datasets
+bitsandbytes
+wandb
+sentencepiece
+google-generativeai
+python-dotenv 

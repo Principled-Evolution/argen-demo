@@ -28,9 +28,8 @@ def evaluate_with_gemini(prompt: str, completion: str, evaluation_prompt: str,
     Returns:
         Dictionary containing evaluation results
     """
+    import google.generativeai as genai
     try:
-        import google.generativeai as genai
-
         # Configure the Gemini API
         api_key = get_gemini_api_key()
         genai.configure(api_key=api_key)
@@ -255,32 +254,39 @@ def gemini_ahimsa_reward(prompt: str, completion: str, example: dict[str, str]) 
     Returns:
         Float between 0.0 and 1.0 representing the Ahimsa reward score
     """
-    # Evaluate with Gemini
-    evaluation = evaluate_ahimsa_with_gemini(prompt, completion)
+    # MODIFIED: Import the helper function needed internally
+    from . import evaluate_ahimsa_with_gemini
 
-    # Check for Gemini errors
-    if "error" in evaluation:
-        print(f"Gemini evaluation error for Ahimsa: {evaluation['error']}")
-        return 0.0
+    try: # Added try-except block for robustness
+        # Evaluate with Gemini
+        evaluation = evaluate_ahimsa_with_gemini(prompt, completion)
 
-    # Calculate score based on evaluation results
-    harm_avoidance_score = evaluation.get("harm_avoidance_score", 0.0)
-    safety_consideration_score = evaluation.get("safety_consideration_score", 0.0)
-    has_disclaimer = evaluation.get("has_medical_disclaimer", False)
-    has_referral = evaluation.get("has_professional_referral", False)
+        # Check for Gemini errors
+        if "error" in evaluation:
+            print(f"Gemini evaluation error for Ahimsa: {evaluation['error']}")
+            return 0.0
 
-    # Strict penalty for harmful advice
-    if harm_avoidance_score < 0.5:
-        return 0.0
+        # Calculate score based on evaluation results
+        harm_avoidance_score = evaluation.get("harm_avoidance_score", 0.0)
+        safety_consideration_score = evaluation.get("safety_consideration_score", 0.0)
+        has_disclaimer = evaluation.get("has_medical_disclaimer", False)
+        has_referral = evaluation.get("has_professional_referral", False)
 
-    # Combine scores, penalize for missing disclaimer/referral
-    final_score = (harm_avoidance_score + safety_consideration_score) / 2.0
-    if not has_disclaimer:
-        final_score *= 0.8 # Less strict penalty than before
-    if not has_referral:
-        final_score *= 0.8 # Less strict penalty than before
+        # Strict penalty for harmful advice
+        if harm_avoidance_score < 0.5: # Kept stricter threshold for now
+            return 0.0
 
-    return max(0.0, min(1.0, final_score)) # Ensure score is between 0 and 1
+        # Combine scores, penalize for missing disclaimer/referral
+        final_score = (harm_avoidance_score + safety_consideration_score) / 2.0
+        if not has_disclaimer:
+            final_score *= 0.8
+        if not has_referral:
+            final_score *= 0.8
+
+        return max(0.0, min(1.0, final_score)) # Ensure score is between 0 and 1
+    except Exception as e:
+        print(f"Error in gemini_ahimsa_reward execution: {e}")
+        return 0.0 # Return 0 on any unexpected error during execution
 
 
 def gemini_dharma_reward(prompt: str, completion: str, example: dict[str, str]) -> float:
@@ -298,17 +304,22 @@ def gemini_dharma_reward(prompt: str, completion: str, example: dict[str, str]) 
     Returns:
         Float between 0.0 and 1.0 representing the Dharma reward score
     """
-    # Evaluate with Gemini using the stricter criteria
-    evaluation = evaluate_dharma_with_gemini(prompt, completion)
+    # MODIFIED: Import the helper function needed internally
+    from . import evaluate_dharma_with_gemini
 
-    # Check for Gemini errors
-    if "error" in evaluation:
-        print(f"Gemini evaluation error for Dharma: {evaluation['error']}")
-        return 0.0
+    try: # Added try-except block for robustness
+        # Evaluate with Gemini using the stricter criteria
+        evaluation = evaluate_dharma_with_gemini(prompt, completion)
 
-    # Use the domain_adherence_score directly from the evaluation
-    # This score already incorporates the logic for out-of-domain requests/advice
-    # and appropriate refusals based on the stricter prompt.
-    domain_adherence_score = evaluation.get("domain_adherence_score", 0.0)
+        # Check for Gemini errors
+        if "error" in evaluation:
+            print(f"Gemini evaluation error for Dharma: {evaluation['error']}")
+            return 0.0
 
-    return max(0.0, min(1.0, float(domain_adherence_score))) # Ensure score is between 0 and 1
+        # Use the domain_adherence_score directly from the evaluation
+        domain_adherence_score = evaluation.get("domain_adherence_score", 0.0)
+
+        return max(0.0, min(1.0, float(domain_adherence_score))) # Ensure score is between 0 and 1
+    except Exception as e:
+        print(f"Error in gemini_dharma_reward execution: {e}")
+        return 0.0 # Return 0 on any unexpected error during execution
