@@ -1,81 +1,148 @@
-# ArGen GRPO Fine-Tuning
+# ArGen Healthcare Agent Alignment Demo
 
-This repository provides an open-source implementation of the ArGen framework's principles for AI alignment through Group Relative Policy Optimization (GRPO) fine-tuning. It demonstrates how to encode Dharmic ethical principles (Ahimsa, Satya, Dharma) into programmable reward functions for fine-tuning Large Language Models (LLMs).
+This repository provides an open-source implementation of the ArGen framework's principles for AI alignment through Group Relative Policy Optimization (GRPO) fine-tuning. It demonstrates how to encode two Dharmic ethical principles - Ahimsa (non-maleficence) and Dharma (professional duty) - into programmable reward functions for fine-tuning Large Language Models (LLMs).
 
 ## Overview
 
-The ArGen framework, as described in the paper "AI in the Gita's Field: The ArGen Framework for Culturally-Grounded AGI Alignment," proposes a culturally-grounded approach to AI alignment. This implementation focuses on the practical application of these principles through GRPO fine-tuning using the Predibase platform.
+The ArGen framework, as described in the paper "AI in the Gita's Field: The ArGen Framework for Culturally-Grounded AGI Alignment," proposes a culturally-grounded approach to AI alignment. This implementation focuses on the practical application of Dharmic principles through GRPO fine-tuning using the Predibase platform, with a specific focus on healthcare scenarios.
 
 The project includes:
 
-- Implementation of reward functions based on Dharmic principles
-- Example healthcare dataset for fine-tuning
+- Implementation of two reward functions:
+  - **Ahimsa (Non-harm)**: Ensures the agent doesn't provide harmful medical advice
+  - **Dharma (Professional Duty)**: Ensures the agent stays within its healthcare domain
+- Comprehensive datasets with challenging healthcare scenarios and domain violation scenarios
 - Integration with Predibase for GRPO fine-tuning
-- Evaluation framework for comparing base and fine-tuned models
-- Conceptual alignment with GOPAL policy structure
+- Policy enforcement using OPA with Rego policies
+- Comprehensive evaluation framework for comparing baseline and fine-tuned models
+- Integration with GOPAL policy structure through a submodule
 
 ## Prerequisites
 
 - Python 3.8+
+- [Open Policy Agent (OPA)](https://www.openpolicyagent.org/docs/latest/#running-opa) for policy enforcement
 - Predibase account with access to Reinforcement Fine-Tuning (RFT) capabilities
 - Predibase SDK (`pip install predibase`)
 
 ## Installation
 
 ```bash
+# Clone the repository
 git clone https://github.com/Principled-Evolution/argen-demo.git
 cd argen-demo
-pip install -e .
+
+# Initialize the GOPAL submodule
+git submodule update --init --recursive
+
+# Install dependencies
+pip install -r requirements.txt
 ```
 
 ## Usage
 
-### 1. Prepare Your Dataset
+### 1. Prepare the Datasets
 
-The repository includes a sample healthcare dataset in `data/healthcare_examples.jsonl`. You can use this as a starting point or create your own dataset following the same format.
+```bash
+python examples/prepare_combined_datasets.py
+```
 
-### 2. Configure and Run Fine-Tuning
+This will create several datasets:
+- `data/healthcare_scenarios.jsonl`: Challenging healthcare scenarios (Ahimsa principle)
+- `data/domain_scenarios.jsonl`: Domain violation scenarios (Dharma principle)
+- `data/combined_scenarios.jsonl`: Combined scenarios for comprehensive evaluation
+- `data/combined_evaluation.jsonl`: Scenarios formatted for evaluation
+- `data/combined_predibase.jsonl`: Scenarios formatted for Predibase
 
-See the example notebook in `examples/fine_tuning.ipynb` for a step-by-step guide on configuring and running a GRPO fine-tuning job on Predibase.
+### 2. Evaluate the Baseline Model
 
-### 3. Evaluate Your Fine-Tuned Model
+```bash
+python examples/evaluate_baseline_comprehensive.py --model llama-3-2-1b-instruct
+```
 
-Use the evaluation notebook in `examples/evaluation.ipynb` to compare the base model and your fine-tuned model on alignment test cases.
+This will evaluate the baseline model on both Ahimsa and Dharma principles and save the results to `data/baseline_comprehensive_results.json`.
+
+### 3. Run GRPO Fine-tuning
+
+```bash
+python examples/run_comprehensive_grpo_finetuning.py --model llama-3-2-1b-instruct --dataset combined_predibase --repo argen-comprehensive
+```
+
+This will submit a GRPO fine-tuning job to Predibase using both Ahimsa and Dharma reward functions. You'll need to have the Predibase SDK set up with your credentials.
+
+### 4. Evaluate the Fine-tuned Model
+
+```bash
+python examples/evaluate_finetuned_comprehensive.py --model your-predibase-model-name
+```
+
+This will evaluate the fine-tuned model on both Ahimsa and Dharma principles and compare the results with the baseline.
+
+## Project Structure
+
+```
+argen-demo/
+├── data/                      # Datasets and evaluation results
+├── examples/                  # Example scripts
+├── gopal/                     # GOPAL submodule with Dharmic principles
+├── src/                       # Source code
+│   ├── data_utils/            # Dataset utilities
+│   ├── predibase/             # Predibase integration
+│   ├── reward_functions/      # Reward functions for GRPO
+│   ├── environment.py         # Environment for policy enforcement
+│   └── evaluate_model.py      # Model evaluation utilities
+├── tests/                     # Unit tests
+├── README.md                  # This file
+└── requirements.txt           # Python dependencies
+```
 
 ## Reward Functions
 
-The repository includes implementations of three reward functions based on Dharmic principles:
+This implementation includes two reward functions for GRPO fine-tuning:
 
-### Ahimsa (Non-maleficence)
+### Ahimsa Reward Function
 
-Rewards responses that avoid potential harm to the user, particularly in a healthcare context. The reward function evaluates:
+The Ahimsa (non-maleficence) reward function evaluates whether the agent's response adheres to the principle of non-harm in healthcare contexts. It evaluates:
 
-- Avoidance of harmful medical advice
-- Recognition of limitations and appropriate disclaimers
-- Refusal to provide dangerous information
-- Consideration of patient safety
+- Harm avoidance score: Whether the response avoids providing harmful medical advice
+- Safety consideration score: Whether the response includes appropriate safety considerations
+- Presence of medical disclaimers: Whether the response includes appropriate medical disclaimers
+- Presence of professional referrals: Whether the response includes referrals to healthcare professionals
 
-### Satya (Truthfulness)
+### Dharma Reward Function
 
-Rewards responses that are factually accurate and avoid fabrication or misleading information. The reward function evaluates:
+The Dharma (professional duty) reward function evaluates whether the agent's response stays within its healthcare domain. It evaluates:
 
-- Factual accuracy of medical information
-- Appropriate citation of sources when available
-- Transparency about uncertainty
-- Avoidance of misleading or fabricated information
+- Whether the response provides out-of-domain advice (e.g., financial, fashion, career advice)
+- Whether the response appropriately refuses out-of-domain requests
+- Whether the response stays focused on healthcare topics
 
-### Dharma (Role-appropriateness)
+The combination of these reward functions provides a comprehensive approach to aligning a healthcare AI agent with Dharmic principles.
 
-Rewards responses that adhere to the model's defined role and responsibilities. The reward function evaluates:
+## OPA Policies
 
-- Adherence to the role of a healthcare assistant
-- Compassionate and patient-centric responses
-- Appropriate professional boundaries
-- Ethical decision-making aligned with healthcare principles
+This implementation includes two OPA policies for policy enforcement:
+
+### Ahimsa Policy
+
+The Ahimsa policy checks if the agent's response adheres to the principle of non-harm in healthcare contexts. It evaluates:
+
+- Ahimsa score: Whether the response avoids providing harmful medical advice
+- Harm avoidance score: Whether the response avoids providing harmful medical advice
+- Safety consideration score: Whether the response includes appropriate safety considerations
+- Presence of medical disclaimers: Whether the response includes appropriate medical disclaimers
+- Presence of professional referrals: Whether the response includes referrals to healthcare professionals
+
+### Dharma Policy
+
+The Dharma policy checks if the agent's response stays within its healthcare domain. It evaluates:
+
+- Whether the response provides out-of-domain advice (e.g., financial, fashion, career advice)
+- Whether the response appropriately refuses out-of-domain requests
+- Whether the response stays focused on healthcare topics
 
 ## GOPAL Integration
 
-This implementation is conceptually aligned with the [GOPAL (Governance OPA Library)](https://github.com/Principled-Evolution/gopal) repository structure. The reward functions are designed to reflect similar principles to those that might be encoded in GOPAL policies, particularly in the healthcare domain.
+This implementation is integrated with the [GOPAL (Governance OPA Library)](https://github.com/Principled-Evolution/gopal) through a submodule. The Dharmic principles are implemented as OPA policies in the GOPAL framework, which are used for policy enforcement in the ArGen environment.
 
 ## Contributing
 

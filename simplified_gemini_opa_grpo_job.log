@@ -1,0 +1,35 @@
+2025-04-24 17:07:09,996 - simplified_gemini_opa_grpo_job - INFO - Starting GRPO job script...
+2025-04-24 17:07:09,997 - simplified_gemini_opa_grpo_job - INFO - Loading environment variables...
+2025-04-24 17:07:09,997 - simplified_gemini_opa_grpo_job - INFO - Getting Gemini API key...
+2025-04-24 17:07:09,997 - simplified_gemini_opa_grpo_job - INFO - Gemini API key found
+2025-04-24 17:07:09,998 - simplified_gemini_opa_grpo_job - INFO - Getting Predibase API token...
+2025-04-24 17:07:09,998 - simplified_gemini_opa_grpo_job - INFO - Predibase API token found
+2025-04-24 17:07:09,998 - simplified_gemini_opa_grpo_job - INFO - Loading reward function code...
+2025-04-24 17:07:09,999 - simplified_gemini_opa_grpo_job - INFO - Loaded simplified_gemini_opa_rewards.py (12559 bytes)
+2025-04-24 17:07:09,999 - simplified_gemini_opa_grpo_job - INFO - Creating GRPO configuration for model llama-3-2-1b-instruct...
+2025-04-24 17:07:12,965 - simplified_gemini_opa_grpo_job - ERROR - Error in GRPO job script: could not get source code
+Traceback (most recent call last):
+  File "/home/kapil/Projects/argen-demo/scripts/run_simplified_gemini_opa_grpo_job.py", line 315, in main
+    config = create_grpo_config(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/kapil/Projects/argen-demo/scripts/run_simplified_gemini_opa_grpo_job.py", line 138, in create_grpo_config
+    reward_fns_config = RewardFunctionsConfig(
+                        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kapil/Projects/argen-demo/.venv/lib/python3.12/site-packages/pydantic/main.py", line 253, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kapil/Projects/argen-demo/.venv/lib/python3.12/site-packages/predibase/config.py", line 127, in coerce_from_callable
+    val = RewardFunction.from_callable(val).model_dump()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kapil/Projects/argen-demo/.venv/lib/python3.12/site-packages/predibase/config.py", line 145, in from_callable
+    fn_source = inspect.getsource(fn)
+                ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/inspect.py", line 1278, in getsource
+    lines, lnum = getsourcelines(object)
+                  ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/inspect.py", line 1260, in getsourcelines
+    lines, lnum = findsource(object)
+                  ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/inspect.py", line 1089, in findsource
+    raise OSError('could not get source code')
+OSError: could not get source code

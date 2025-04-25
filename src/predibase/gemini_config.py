@@ -1,12 +1,14 @@
 """
-Configuration utilities for Predibase GRPO fine-tuning.
+Configuration for Predibase GRPO fine-tuning with Gemini reward functions.
 """
 
-from typing import Dict, List, Optional, Union, Callable
 import os
+from typing import Dict, List, Optional, Callable, Any
+
+from src.utils.env import load_env_vars
 
 
-def create_grpo_config(
+def create_gemini_grpo_config(
     base_model: str = "llama-3-2-1b-instruct",
     reward_functions: Optional[Dict[str, Callable]] = None,
     learning_rate: float = 5e-5,
@@ -20,8 +22,8 @@ def create_grpo_config(
     external_packages: Optional[List[str]] = None,
 ) -> Dict:
     """
-    Create a configuration for Predibase GRPO fine-tuning.
-
+    Create a configuration for Predibase GRPO fine-tuning with Gemini reward functions.
+    
     Args:
         base_model: The base model to fine-tune
         reward_functions: Dictionary mapping reward function names to callables
@@ -34,7 +36,7 @@ def create_grpo_config(
         lora_alpha: LoRA alpha
         lora_dropout: LoRA dropout
         external_packages: List of external packages required by reward functions
-
+        
     Returns:
         Dictionary containing the Predibase GRPO configuration
     """
@@ -44,28 +46,45 @@ def create_grpo_config(
         raise ImportError(
             "Predibase SDK not installed. Please install it with 'pip install predibase'."
         )
-
+    
+    # Load environment variables
+    load_env_vars()
+    
     # Set up reward functions configuration
     if reward_functions is None:
-        # Import default reward functions if none provided
-        from ..reward_functions.ahimsa_strict import ahimsa_strict_reward
-        from ..reward_functions.dharma_domain import dharma_domain_reward
+        # Import Gemini reward functions
+        from ..reward_functions.gemini_rewards import gemini_ahimsa_reward, gemini_dharma_reward
         reward_functions = {
-            "ahimsa": ahimsa_strict_reward,
-            "dharma": dharma_domain_reward,
+            "ahimsa": gemini_ahimsa_reward,
+            "dharma": gemini_dharma_reward,
         }
-
-    # Set up runtime configuration if external packages are needed
-    runtime_config = None
-    if external_packages:
-        runtime_config = RewardFunctionsRuntimeConfig(packages=external_packages)
-
+    
+    # Set up required packages
+    if external_packages is None:
+        external_packages = ["google-generativeai", "python-dotenv"]
+    else:
+        if "google-generativeai" not in external_packages:
+            external_packages.append("google-generativeai")
+        if "python-dotenv" not in external_packages:
+            external_packages.append("python-dotenv")
+    
+    # Set up environment variables
+    env_vars = {
+        "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY", "")
+    }
+    
+    # Create runtime configuration
+    runtime_config = RewardFunctionsRuntimeConfig(
+        packages=external_packages,
+        env_vars=env_vars
+    )
+    
     # Create reward functions configuration
     reward_fns_config = RewardFunctionsConfig(
         functions=reward_functions,
         runtime=runtime_config,
     )
-
+    
     # Create GRPO configuration
     grpo_config = GRPOConfig(
         base_model=base_model,
@@ -79,41 +98,56 @@ def create_grpo_config(
         lora_alpha=lora_alpha,
         lora_dropout=lora_dropout,
     )
-
+    
     return grpo_config
 
 
-def submit_grpo_job(
+def submit_gemini_grpo_job(
     config: Dict,
     dataset: str,
     repo: str,
-    description: str = "ArGen GRPO fine-tuning",
+    description: str = "ArGen GRPO fine-tuning with Gemini reward functions",
 ) -> str:
     """
     Submit a GRPO fine-tuning job to Predibase.
-
+    
     Args:
-        config: Predibase GRPO configuration
-        dataset: Name of the dataset to use for fine-tuning
-        repo: Name of the repository to save the adapter to
-        description: Description of the fine-tuning job
-
+        config: The GRPO configuration
+        dataset: The name of the dataset in Predibase
+        repo: The name of the repository to save the adapter to
+        description: A description of the fine-tuning job
+        
     Returns:
-        ID of the submitted job
+        The job ID
     """
     try:
-        import predibase as pb
+        from predibase import Predibase
     except ImportError:
         raise ImportError(
             "Predibase SDK not installed. Please install it with 'pip install predibase'."
         )
-
+    
+    # Get API token from config file
+    config_path = os.path.expanduser("~/.predibase/config.json")
+    if os.path.exists(config_path):
+        import json
+        with open(config_path, 'r') as f:
+            pb_config = json.load(f)
+            api_token = pb_config.get("api_key")
+            if not api_token:
+                raise ValueError("API token not found in config file")
+    else:
+        raise ValueError("Config file not found")
+    
+    # Initialize Predibase client
+    pb = Predibase(api_token=api_token)
+    
     # Submit the job
-    adapter = pb.adapters.create(
+    job = pb.fine_tunings.create(
         config=config,
         dataset=dataset,
         repo=repo,
-        description=description,
+        description=description
     )
-
-    return adapter.id
+    
+    return job.id

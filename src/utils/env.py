@@ -1,0 +1,34 @@
+"""
+Environment variable utilities.
+"""
+
+import os
+from typing import Optional
+from dotenv import load_dotenv
+
+
+def load_env_vars() -> None:
+    """
+    Load environment variables from .env file.
+    """
+    # Load environment variables from .env file
+    load_dotenv()
+
+
+def get_gemini_api_key() -> str:
+    """
+    Get the Gemini API key from environment variables.
+    
+    Returns:
+        str: The Gemini API key
+        
+    Raises:
+        ValueError: If the GEMINI_API_KEY environment variable is not set
+    """
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "GEMINI_API_KEY environment variable not set. "
+            "Please set it in your environment or in a .env file."
+        )
+    return api_key

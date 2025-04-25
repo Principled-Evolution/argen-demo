@@ -1,0 +1,44 @@
+2025-04-24 17:09:06,603 - direct_gemini_opa_grpo_job - INFO - Starting GRPO job script...
+2025-04-24 17:09:06,603 - direct_gemini_opa_grpo_job - INFO - Loading environment variables...
+2025-04-24 17:09:06,604 - direct_gemini_opa_grpo_job - INFO - Getting Gemini API key...
+2025-04-24 17:09:06,604 - direct_gemini_opa_grpo_job - INFO - Gemini API key found
+2025-04-24 17:09:06,604 - direct_gemini_opa_grpo_job - INFO - Getting Predibase API token...
+2025-04-24 17:09:06,605 - direct_gemini_opa_grpo_job - INFO - Predibase API token found
+2025-04-24 17:09:06,605 - direct_gemini_opa_grpo_job - INFO - Creating GRPO configuration for model llama-3-2-1b-instruct...
+2025-04-24 17:09:09,695 - direct_gemini_opa_grpo_job - INFO - GRPO configuration created
+2025-04-24 17:09:09,695 - direct_gemini_opa_grpo_job - INFO - Submitting GRPO job to Predibase (dataset: argen_combined_dataset, repo: argen-gemini-opa)...
+2025-04-24 17:09:10,850 - direct_gemini_opa_grpo_job - INFO - Connected to Predibase
+2025-04-24 17:09:13,841 - direct_gemini_opa_grpo_job - ERROR - Error creating GRPO job: 'FinetuningJob' object has no attribute 'id'
+2025-04-24 17:09:13,842 - direct_gemini_opa_grpo_job - ERROR - Error in GRPO job script: 'FinetuningJob' object has no attribute 'id'
+Traceback (most recent call last):
+  File "/home/kapil/Projects/argen-demo/scripts/run_direct_gemini_opa_grpo_job.py", line 533, in main
+    job = submit_grpo_job(
+          ^^^^^^^^^^^^^^^^
+  File "/home/kapil/Projects/argen-demo/scripts/run_direct_gemini_opa_grpo_job.py", line 421, in submit_grpo_job
+    logger.info(f"GRPO job submitted successfully! Job ID: {job.id}")
+                                                            ^^^^^^
+  File "/home/kapil/Projects/argen-demo/.venv/lib/python3.12/site-packages/pydantic/main.py", line 994, in __getattr__
+    raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+AttributeError: 'FinetuningJob' object has no attribute 'id'
+2025-04-24 17:10:30,685 - direct_gemini_opa_grpo_job - INFO - Starting GRPO job script...
+2025-04-24 17:10:30,686 - direct_gemini_opa_grpo_job - INFO - Loading environment variables...
+2025-04-24 17:10:30,687 - direct_gemini_opa_grpo_job - INFO - Getting Gemini API key...
+2025-04-24 17:10:30,687 - direct_gemini_opa_grpo_job - INFO - Gemini API key found
+2025-04-24 17:10:30,687 - direct_gemini_opa_grpo_job - INFO - Getting Predibase API token...
+2025-04-24 17:10:30,688 - direct_gemini_opa_grpo_job - INFO - Predibase API token found
+2025-04-24 17:10:30,688 - direct_gemini_opa_grpo_job - INFO - Creating GRPO configuration for model llama-3-2-1b-instruct...
+2025-04-24 17:10:34,623 - direct_gemini_opa_grpo_job - INFO - GRPO configuration created
+2025-04-24 17:10:34,623 - direct_gemini_opa_grpo_job - INFO - Submitting GRPO job to Predibase (dataset: argen_combined_dataset, repo: argen-gemini-opa)...
+2025-04-24 17:10:35,814 - direct_gemini_opa_grpo_job - INFO - Connected to Predibase
+2025-04-24 17:10:37,836 - direct_gemini_opa_grpo_job - INFO - GRPO job submitted successfully! Job UUID: d74e2e4c-1066-40a6-ba90-79c3196feb60
+2025-04-24 17:10:37,836 - direct_gemini_opa_grpo_job - INFO - Monitoring job d74e2e4c-1066-40a6-ba90-79c3196feb60...
+2025-04-24 17:10:39,757 - direct_gemini_opa_grpo_job - INFO - Job d74e2e4c-1066-40a6-ba90-79c3196feb60 status: queued
+2025-04-24 17:10:39,757 - direct_gemini_opa_grpo_job - WARNING - Error getting logs: 'FinetuningJobs' object has no attribute 'logs'
+2025-04-24 17:11:40,644 - direct_gemini_opa_grpo_job - INFO - Job d74e2e4c-1066-40a6-ba90-79c3196feb60 status: queued
+2025-04-24 17:11:40,645 - direct_gemini_opa_grpo_job - WARNING - Error getting logs: 'FinetuningJobs' object has no attribute 'logs'
+2025-04-24 17:12:41,592 - direct_gemini_opa_grpo_job - INFO - Job d74e2e4c-1066-40a6-ba90-79c3196feb60 status: queued
+2025-04-24 17:12:41,593 - direct_gemini_opa_grpo_job - WARNING - Error getting logs: 'FinetuningJobs' object has no attribute 'logs'
+2025-04-24 17:13:42,424 - direct_gemini_opa_grpo_job - INFO - Job d74e2e4c-1066-40a6-ba90-79c3196feb60 status: training
+2025-04-24 17:13:42,425 - direct_gemini_opa_grpo_job - WARNING - Error getting logs: 'FinetuningJobs' object has no attribute 'logs'
+2025-04-24 17:14:43,386 - direct_gemini_opa_grpo_job - INFO - Job d74e2e4c-1066-40a6-ba90-79c3196feb60 status: training
+2025-04-24 17:14:43,387 - direct_gemini_opa_grpo_job - WARNING - Error getting logs: 'FinetuningJobs' object has no attribute 'logs'

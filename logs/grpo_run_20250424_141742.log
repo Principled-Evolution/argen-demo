@@ -1,0 +1,8 @@
+[2025-04-24 14:17:42] Starting GRPO tracking script...
+[2025-04-24 14:17:44] Submitting GRPO job with the following parameters:
+[2025-04-24 14:17:44]   Base model: llama-3-2-1b-instruct
+[2025-04-24 14:17:44]   Dataset: argen_combined_dataset
+[2025-04-24 14:17:44]   Repository: argen-gemini-opa
+[2025-04-24 14:17:44]   Learning rate: 5e-05
+[2025-04-24 14:17:44]   Epochs: 1
+[2025-04-24 14:17:44]   Batch size: 4
