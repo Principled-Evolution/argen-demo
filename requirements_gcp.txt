@@ -1,4 +1,4 @@
-unsloth[cu121]
+#unsloth[cu121]
 trl
 accelerate
 datasets
