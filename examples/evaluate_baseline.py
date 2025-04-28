@@ -10,6 +10,7 @@ import argparse
 from typing import Dict, List, Optional
 import datetime
 import subprocess
+import asyncio
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -129,8 +130,8 @@ def main():
         print("Running in test mode with only the first scenario...")
         scenarios = scenarios[:1]
     
-    # Evaluate the model, passing the API key
-    evaluate_model_with_openai(
+    # Run the async function using asyncio.run()
+    asyncio.run(evaluate_model_with_openai(
         model_name=args.model,
         scenarios=scenarios,
         output_file=output_filename,
@@ -138,7 +139,7 @@ def main():
         openai_api_key=openai_api_key,
         test_mode=args.test,
         use_basic_prompt=args.use_basic_prompt
-    )
+    ))
     
     print("Baseline model evaluation complete!")
 

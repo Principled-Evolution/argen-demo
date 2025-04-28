@@ -4,12 +4,12 @@ Reward functions for ArGen GRPO fine-tuning using OpenAI evaluations.
 
 import os
 import json
-import time
+import asyncio
 import logging
 import re
 from typing import Dict, Optional, Tuple
 
-from openai import OpenAI, RateLimitError, APIError, OpenAIError
+from openai import AsyncOpenAI, RateLimitError, APIError, OpenAIError
 
 # Remove unused imports related to the old client initialization
 # from src.utils.env import load_env_vars, get_openai_api_key 
@@ -40,9 +40,9 @@ DEFAULT_EVAL_RESPONSE = {
 
 
 # --- Renamed and Updated Ahimsa Evaluation --- 
-def evaluate_ahimsa_with_openai(original_prompt: str, model_response: str, openai_api_key: Optional[str]) -> Dict:
+async def evaluate_ahimsa_with_openai(original_prompt: str, model_response: str, openai_api_key: Optional[str]) -> Dict:
     """
-    Evaluates a model response for Ahimsa (non-harm) using OpenAI API.
+    Evaluates a model response for Ahimsa (non-harm) using OpenAI API (asynchronously).
 
     Args:
         original_prompt: The user prompt given to the baseline model.
@@ -57,7 +57,7 @@ def evaluate_ahimsa_with_openai(original_prompt: str, model_response: str, opena
         return {**DEFAULT_EVAL_RESPONSE, "error": "API Key Missing"}
 
     try:
-        client = OpenAI(api_key=openai_api_key)
+        client = AsyncOpenAI(api_key=openai_api_key)
     except Exception as e:
         logger.error(f"Failed to initialize OpenAI client for Ahimsa eval: {e}")
         return {**DEFAULT_EVAL_RESPONSE, "error": "Client Init Failed"}
@@ -105,7 +105,7 @@ def evaluate_ahimsa_with_openai(original_prompt: str, model_response: str, opena
 
     for attempt in range(max_retries):
         try:
-            response = client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
                 response_format={"type": "json_object"},
@@ -133,7 +133,7 @@ def evaluate_ahimsa_with_openai(original_prompt: str, model_response: str, opena
             logger.error(f"OpenAI Ahimsa attempt {attempt + 1}: Unexpected error: {e}. Retrying in {retry_delay}s...", exc_info=True)
 
         if attempt < max_retries - 1:
-            time.sleep(retry_delay)
+            await asyncio.sleep(retry_delay)
         else:
             logger.error(f"OpenAI Ahimsa call failed after {max_retries} attempts.")
             return DEFAULT_EVAL_RESPONSE # Return default error if all retries fail
@@ -156,9 +156,6 @@ def evaluate_ahimsa_with_openai(original_prompt: str, model_response: str, opena
              
              evaluation_result["ahimsa_score"] = ahimsa_score
              evaluation_result["ahimsa_violation"] = ahimsa_score < 0.5 # Determine violation based on final score
-             # Ensure standard keys are present
-             evaluation_result["dharma_score"] = DEFAULT_EVAL_RESPONSE["dharma_score"]
-             evaluation_result["dharma_violation"] = DEFAULT_EVAL_RESPONSE["dharma_violation"]
              return evaluation_result
         else:
             logger.error(f"OpenAI Ahimsa response missing required keys: {evaluation_result}")
@@ -170,9 +167,9 @@ def evaluate_ahimsa_with_openai(original_prompt: str, model_response: str, opena
 
 
 # --- Renamed and Updated Dharma Evaluation --- 
-def evaluate_dharma_with_openai(original_prompt: str, model_response: str, openai_api_key: Optional[str]) -> Dict:
+async def evaluate_dharma_with_openai(original_prompt: str, model_response: str, openai_api_key: Optional[str]) -> Dict:
     """
-    Evaluates a model response for Dharma (domain adherence) using OpenAI API.
+    Evaluates a model response for Dharma (domain adherence) using OpenAI API (asynchronously).
 
     Args:
         original_prompt: The user prompt given to the baseline model.
@@ -187,7 +184,7 @@ def evaluate_dharma_with_openai(original_prompt: str, model_response: str, opena
         return {**DEFAULT_EVAL_RESPONSE, "error": "API Key Missing"}
         
     try:
-        client = OpenAI(api_key=openai_api_key)
+        client = AsyncOpenAI(api_key=openai_api_key)
     except Exception as e:
         logger.error(f"Failed to initialize OpenAI client for Dharma eval: {e}")
         return {**DEFAULT_EVAL_RESPONSE, "error": "Client Init Failed"}
@@ -233,7 +230,7 @@ def evaluate_dharma_with_openai(original_prompt: str, model_response: str, opena
 
     for attempt in range(max_retries):
         try:
-            response = client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
                 response_format={"type": "json_object"},
@@ -261,7 +258,7 @@ def evaluate_dharma_with_openai(original_prompt: str, model_response: str, opena
             logger.error(f"OpenAI Dharma attempt {attempt + 1}: Unexpected error: {e}. Retrying in {retry_delay}s...", exc_info=True)
 
         if attempt < max_retries - 1:
-            time.sleep(retry_delay)
+            await asyncio.sleep(retry_delay)
         else:
             logger.error(f"OpenAI Dharma call failed after {max_retries} attempts.")
             return DEFAULT_EVAL_RESPONSE # Return default error if all retries fail
@@ -276,9 +273,6 @@ def evaluate_dharma_with_openai(original_prompt: str, model_response: str, opena
              
              evaluation_result["dharma_score"] = dharma_score
              evaluation_result["dharma_violation"] = dharma_violation
-              # Ensure standard keys are present
-             evaluation_result["ahimsa_score"] = DEFAULT_EVAL_RESPONSE["ahimsa_score"]
-             evaluation_result["ahimsa_violation"] = DEFAULT_EVAL_RESPONSE["ahimsa_violation"]
              return evaluation_result
         else:
             logger.error(f"OpenAI Dharma response missing required keys: {evaluation_result}")
