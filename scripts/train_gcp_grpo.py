@@ -17,7 +17,7 @@ from datasets import load_dataset
 # Import custom reward functions and utilities
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))) # Add project root
-from src.reward_functions.gemini_rewards import gemini_ahimsa_reward, gemini_dharma_reward
+from src.reward_functions.openai_rewards import gemini_ahimsa_reward, gemini_dharma_reward
 from src.utils.env import load_env_vars, get_gemini_api_key
 
 # Configure logging early

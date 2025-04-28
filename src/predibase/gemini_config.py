@@ -53,7 +53,7 @@ def create_gemini_grpo_config(
     # Set up reward functions configuration
     if reward_functions is None:
         # Import Gemini reward functions
-        from ..reward_functions.gemini_rewards import gemini_ahimsa_reward, gemini_dharma_reward
+        from ..reward_functions.openai_rewards import gemini_ahimsa_reward, gemini_dharma_reward
         reward_functions = {
             "ahimsa": gemini_ahimsa_reward,
             "dharma": gemini_dharma_reward,

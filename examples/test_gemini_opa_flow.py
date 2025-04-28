@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils.env import load_env_vars
-from src.reward_functions.gemini_rewards import (
+from src.reward_functions.openai_rewards import (
     evaluate_ahimsa_with_gemini,
     evaluate_dharma_with_gemini
 )

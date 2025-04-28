@@ -12,8 +12,8 @@ from typing import Dict
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils.env import load_env_vars
-from examples.evaluate_baseline_with_gemini import load_scenarios
-from src.evaluation.gemini_evaluator import evaluate_model_with_gemini
+from examples.evaluate_baseline import load_scenarios
+from src.evaluation.openai_evaluator import evaluate_model_with_gemini
 
 
 def main():

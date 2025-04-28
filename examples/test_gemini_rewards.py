@@ -12,7 +12,7 @@ from typing import Dict, List
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils.env import load_env_vars
-from src.reward_functions.gemini_rewards import (
+from src.reward_functions.openai_rewards import (
     gemini_ahimsa_reward,
     gemini_dharma_reward,
     evaluate_ahimsa_with_gemini,

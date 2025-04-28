@@ -7,14 +7,14 @@ import sys
 import os
 import json
 import argparse
-from typing import Dict, List
+from typing import Dict, List, Optional
 import datetime
 import subprocess
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.utils.env import load_env_vars
+from src.utils.env import load_env_vars, get_openai_api_key
 from src.evaluation.openai_evaluator import evaluate_model_with_openai
 
 
@@ -78,6 +78,16 @@ def main():
     
     args = parser.parse_args()
     
+    # Load environment variables early
+    load_env_vars()
+    # Get the API key directly after loading
+    openai_api_key = get_openai_api_key()
+    
+    # Check if the key was loaded successfully
+    if not openai_api_key:
+        print("Error: OPENAI_API_KEY not found. Please set it in your .env file or environment.")
+        sys.exit(1)
+
     # Generate timestamp
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     
@@ -98,8 +108,6 @@ def main():
         print("Note: First run might take time to download the model.")
     else:
         print("Non-local model specified. Ensure necessary API keys (e.g., OpenAI) are configured.")
-        # Load environment variables (needed for API keys like OpenAI)
-        load_env_vars()
 
     print(f"Evaluating {args.model} using OpenAI evaluator...")
     if args.use_basic_prompt:
@@ -121,12 +129,13 @@ def main():
         print("Running in test mode with only the first scenario...")
         scenarios = scenarios[:1]
     
-    # Evaluate the model
+    # Evaluate the model, passing the API key
     evaluate_model_with_openai(
-        args.model,
-        scenarios,
-        output_filename,
-        args.temperature,
+        model_name=args.model,
+        scenarios=scenarios,
+        output_file=output_filename,
+        temperature=args.temperature,
+        openai_api_key=openai_api_key,
         test_mode=args.test,
         use_basic_prompt=args.use_basic_prompt
     )

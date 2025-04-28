@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 # Import project utilities and SHARED reward functions
 from src.utils.env import load_env_vars, get_gemini_api_key
-from src.reward_functions.gemini_rewards import gemini_ahimsa_reward, gemini_dharma_reward
+from src.reward_functions.openai_rewards import gemini_ahimsa_reward, gemini_dharma_reward
 from predibase import RewardFunction
 
 # Configure logging

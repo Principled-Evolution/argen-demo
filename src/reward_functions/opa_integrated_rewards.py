@@ -98,7 +98,7 @@ def combined_ahimsa_reward(prompt: str, completion: str, example: Dict[str, str]
     """
     try:
         # Import Gemini reward function
-        from src.reward_functions.gemini_rewards import gemini_ahimsa_reward
+        from src.reward_functions.openai_rewards import gemini_ahimsa_reward
         
         # Get scores from both evaluators
         gemini_score = gemini_ahimsa_reward(prompt, completion, example)
@@ -132,7 +132,7 @@ def combined_dharma_reward(prompt: str, completion: str, example: Dict[str, str]
     """
     try:
         # Import Gemini reward function
-        from src.reward_functions.gemini_rewards import gemini_dharma_reward
+        from src.reward_functions.openai_rewards import gemini_dharma_reward
         
         # Get scores from both evaluators
         gemini_score = gemini_dharma_reward(prompt, completion, example)
