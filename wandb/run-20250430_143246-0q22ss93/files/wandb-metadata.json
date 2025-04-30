@@ -1,0 +1,42 @@
+{
+  "os": "Linux-5.15.0-1081-gcp-x86_64-with-glibc2.31",
+  "python": "CPython 3.11.9",
+  "startedAt": "2025-04-30T14:32:46.361006Z",
+  "program": "/home/kapil/argen-demo/examples/train_grpo.py",
+  "codePath": "examples/train_grpo.py",
+  "git": {
+    "remote": "https://github.com/Principled-Evolution/argen-demo.git",
+    "commit": "bd08f1714bb0647c64c157b97fb48cb5de78625a"
+  },
+  "email": "kapil@principledevolution.ai",
+  "root": "/home/kapil/argen-demo",
+  "host": "argen-grpo-vm",
+  "executable": "/home/kapil/argen-demo/.venv/bin/python",
+  "codePathLocal": "examples/train_grpo.py",
+  "cpu_count": 2,
+  "cpu_count_logical": 4,
+  "gpu": "NVIDIA L4",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "207929917440",
+      "used": "78224310272"
+    }
+  },
+  "memory": {
+    "total": "16762761216"
+  },
+  "cpu": {
+    "count": 2,
+    "countLogical": 4
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA L4",
+      "memoryTotal": "24152899584",
+      "cudaCores": 7424,
+      "architecture": "Ada"
+    }
+  ],
+  "cudaVersion": "12.4"
+}

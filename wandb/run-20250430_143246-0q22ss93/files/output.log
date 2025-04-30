@@ -1,0 +1,20 @@
+Initializing GRPOTrainer for model unsloth/Llama-3.2-1B-Instruct...
+Traceback (most recent call last):
+  File "/home/kapil/argen-demo/examples/train_grpo.py", line 282, in <module>
+    main()
+  File "/home/kapil/argen-demo/examples/train_grpo.py", line 262, in main
+    trainer = GRPOTrainer(
+              ^^^^^^^^^^^^
+  File "/home/kapil/argen-demo/.venv/lib/python3.11/site-packages/trl/trainer/grpo_trainer.py", line 399, in __init__
+    model = AutoModelForCausalLM.from_pretrained(model, **model_init_kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kapil/argen-demo/.venv/lib/python3.11/site-packages/transformers/models/auto/auto_factory.py", line 571, in from_pretrained
+    return model_class.from_pretrained(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kapil/argen-demo/.venv/lib/python3.11/site-packages/transformers/modeling_utils.py", line 279, in _wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kapil/argen-demo/.venv/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4342, in from_pretrained
+    model = cls(config, *model_args, **model_kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: LlamaForCausalLM.__init__() got an unexpected keyword argument 'system_prompt'

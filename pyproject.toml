@@ -18,6 +18,7 @@ pydantic = "^2.5.0"
 jsonlines = "^3.1.0"
 pandas = "^2.1.0"
 trl = "^0.17.0"
+protobuf = "^6.30.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"

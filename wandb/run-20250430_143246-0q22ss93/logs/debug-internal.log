@@ -1,0 +1,15 @@
+{"time":"2025-04-30T14:32:46.36354866Z","level":"INFO","msg":"stream: starting","core version":"0.19.10","symlink path":"/home/kapil/argen-demo/wandb/run-20250430_143246-0q22ss93/logs/debug-core.log"}
+{"time":"2025-04-30T14:32:46.500113026Z","level":"INFO","msg":"created new stream","id":"0q22ss93"}
+{"time":"2025-04-30T14:32:46.500152469Z","level":"INFO","msg":"stream: started","id":"0q22ss93"}
+{"time":"2025-04-30T14:32:46.500211411Z","level":"INFO","msg":"writer: Do: started","stream_id":"0q22ss93"}
+{"time":"2025-04-30T14:32:46.500229632Z","level":"INFO","msg":"sender: started","stream_id":"0q22ss93"}
+{"time":"2025-04-30T14:32:46.500366119Z","level":"INFO","msg":"handler: started","stream_id":"0q22ss93"}
+{"time":"2025-04-30T14:32:46.67413823Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-30T14:32:47.956149617Z","level":"INFO","msg":"stream: closing","id":"0q22ss93"}
+{"time":"2025-04-30T14:32:47.956185503Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-04-30T14:32:47.956250405Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-04-30T14:32:48.241519313Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-04-30T14:32:48.59289831Z","level":"INFO","msg":"handler: closed","stream_id":"0q22ss93"}
+{"time":"2025-04-30T14:32:48.592945986Z","level":"INFO","msg":"writer: Close: closed","stream_id":"0q22ss93"}
+{"time":"2025-04-30T14:32:48.592960915Z","level":"INFO","msg":"sender: closed","stream_id":"0q22ss93"}
+{"time":"2025-04-30T14:32:48.593011122Z","level":"INFO","msg":"stream: closed","id":"0q22ss93"}

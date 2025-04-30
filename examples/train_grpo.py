@@ -234,7 +234,7 @@ def main():
         max_prompt_length=grpo_config["max_prompt_length"],
         max_completion_length=grpo_config["max_completion_length"],
         num_generations=grpo_config["num_generations"],
-        mini_repeat_count=grpo_config["mini_repeat_count"],
+        num_iterations=grpo_config["num_iterations"],
         beta=grpo_config["beta"],
         disable_dropout=grpo_config["disable_dropout"],
         warmup_steps=grpo_config["warmup_steps"],
@@ -244,10 +244,9 @@ def main():
         report_to=["wandb"]
     )
     
-    # Add system prompt to model init kwargs
+    # Add model initialization kwargs - don't include system_prompt here
     model_init_kwargs = {
         "torch_dtype": "bfloat16",
-        "system_prompt": get_system_prompt(args.use_basic_prompt)
     }
     trl_config.model_init_kwargs = model_init_kwargs
     
@@ -256,6 +255,9 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"  # Required for GRPO
+    
+    # Set the system prompt on the tokenizer instead
+    system_prompt = get_system_prompt(args.use_basic_prompt)
     
     # Initialize trainer
     print(f"Initializing GRPOTrainer for model {args.model}...")
