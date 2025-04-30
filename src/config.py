@@ -42,9 +42,9 @@ GRPO_CONFIG = {
     "learning_rate": 5e-6,
     "num_train_epochs": 3,
     "gradient_accumulation_steps": 2,
-    "num_generations": 2,
+    "num_generations": 6,
     "num_iterations": 2,          # Changed from mini_repeat_count to num_iterations
-    "per_device_train_batch_size": 2,
+    "per_device_train_batch_size": 3,
     "max_prompt_length": 512,
     "max_completion_length": 512,
     "disable_dropout": True,
