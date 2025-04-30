@@ -35,6 +35,30 @@ from tqdm import tqdm
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def _create_fallback_prompt(messages: List[Dict[str, str]]) -> str:
+    """
+    Creates a fallback prompt format when chat template is not available.
+    
+    Args:
+        messages: List of message dictionaries with 'role' and 'content' keys
+        
+    Returns:
+        A formatted string prompt
+    """
+    prompt_parts = []
+    for msg in messages:
+        role = msg.get('role', '').capitalize()
+        content = msg.get('content', '')
+        prompt_parts.append(f"{role}: {content}")
+    
+    # Format looks like: "System: ... \nUser: ... \nAssistant:"
+    formatted_prompt = "\n".join(prompt_parts)
+    # Add the assistant prefix to indicate where model should continue
+    if not formatted_prompt.endswith("Assistant:"):
+        formatted_prompt += "\nAssistant:"
+    
+    return formatted_prompt
+
 def calculate_metrics(results: List[Dict]) -> Dict:
     """
     Calculates summary metrics from individual evaluation results.
@@ -186,17 +210,17 @@ def _generate_response(
     use_basic_prompt: bool = False
 ) -> Tuple[Optional[str], float]:
     """
-    Generates a response from the specified model (local or Predibase).
+    Generates a response from the specified model (always uses local inference).
 
     Args:
-        model_name: Identifier for the model (HF name/path or Predibase name).
+        model_name: Identifier for the model (HF name/path).
         prompt: The fully formatted prompt to send to the model.
         temperature: Temperature for generation.
         model: Pre-loaded Hugging Face model (for local generation).
         tokenizer: Pre-loaded Hugging Face tokenizer (for local generation).
         max_new_tokens: Max tokens for local generation.
-        max_retries: Max retries for Predibase call.
-        retry_delay: Delay for Predibase retry.
+        max_retries: Max retries for generation (kept for API compatibility).
+        retry_delay: Delay for retry (kept for API compatibility).
         test_mode: If True, returns a mock response instead of calling the model.
         use_basic_prompt: Flag potentially influencing prompt logic (kept for now).
 
@@ -210,91 +234,71 @@ def _generate_response(
     response = None
     last_error = "Generation failed after retries."
 
-    # Determine if it's a local model based on format
-    is_local_model = model is not None and tokenizer is not None
+    # Check if model and tokenizer are loaded
+    if not model or not tokenizer:
+        logging.error("Local generation called but model/tokenizer not provided.")
+        return None, time.time() - start_time
 
-    if is_local_model:
-        logging.info(f"Generating response locally using pre-loaded model for prompt (first 50 chars): {prompt[:50]}...")
-        if not model or not tokenizer:
-            logging.error("Local generation called but model/tokenizer not provided.")
-            return None, time.time() - start_time # Return error if model/tokenizer missing
-        
-        # Re-implement generation logic from generate_model_response_local here
-        # Note: Retry logic might be less necessary or structured differently now
-        try:
-            # Ensure the model is on the correct device (it should be from device_map="auto")
-            device = model.device
-            logging.info(f"Using device: {device} from pre-loaded model.")
+    logging.info(f"Generating response locally for model {model_name} (first 50 chars): {prompt[:50]}...")
+    
+    try:
+        # Ensure the model is on the correct device (it should be from device_map="auto")
+        device = model.device
+        logging.info(f"Using device: {device} from pre-loaded model.")
 
-            # Create a text generation pipeline ON THE FLY with the loaded components
-            pipe = pipeline(
-                "text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                max_new_tokens=max_new_tokens,
-                temperature=temperature if temperature > 0 else None,
-                do_sample=temperature > 0,
-                pad_token_id=tokenizer.eos_token_id,
-                # Device is handled by accelerate (device_map="auto") when loading model
-            )
-
-            # Handle chat formatted prompts vs raw text (similar logic as before)
-            is_chat_formatted = "<|start_header_id|>" in prompt and "<|end_header_id|>" in prompt
-            formatted_inputs = prompt # Default to using the prompt as is
-
-            if is_chat_formatted and hasattr(tokenizer, 'apply_chat_template'):
-                # Attempt to reconstruct messages if possible, otherwise use raw prompt
-                user_message_match = re.search(r"<\|start_header_id\|>user<\|end_header_id\|>\s*(.*?)\s*<\|eot_id\|>", prompt, re.DOTALL)
-                system_message_match = re.search(r"<\|start_header_id\|>system<\|end_header_id\|>\s*(.*?)\s*<\|eot_id\|>", prompt, re.DOTALL)
-
-                if user_message_match:
-                    user_content = user_message_match.group(1).strip()
-                    messages = []
-                    if system_message_match:
-                        messages.append({"role": "system", "content": system_message_match.group(1).strip()})
-                    messages.append({"role": "user", "content": user_content})
-                    
-                    # Let the tokenizer handle the template application for the pipeline
-                    formatted_inputs = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-                    logging.debug(f"Applied chat template. Input to pipeline (start): {formatted_inputs[:100]}...")
-                # else: keep formatted_prompt which contains the full pre-formatted string
-           
-            # Generate response using the pipeline
-            outputs = pipe(formatted_inputs)
-            response = outputs[0]['generated_text']
-            logging.debug(f"Pipeline output (start): {response[:100]}...")
-
-            # Remove the input prompt part from the pipeline output
-            # This is crucial as pipeline often includes the input
-            if response.startswith(formatted_inputs):
-                response = response[len(formatted_inputs):]
-            # Fallback: if original pre-formatted prompt was used, try removing that too
-            elif formatted_inputs == prompt and response.startswith(prompt):
-                 response = response[len(prompt):]
-
-            if not response:
-                raise ValueError("Received empty response from local model pipeline")
-
-            response = response.strip() # Ensure clean output
-            # Clean up pipeline object? (Maybe not needed if created fresh each time)
-            # del pipe 
-            # torch.cuda.empty_cache() # Avoid clearing cache here, do it after loop
-
-        except Exception as e:
-            logging.exception(f"Error during local generation pipeline: {e}") # Log stack trace
-            response = f"Error: Local generation failed - {str(e)}" # Set error response
-            # Don't delete model/tokenizer here, handle cleanup outside
-   
-    else: # Predibase Path (uses retry logic from generate_model_response)
-        logging.info(f"Generating response via Predibase for model {model_name}...")
-        # Predibase call remains unchanged for now
-        response = generate_model_response(
-            model_name=model_name,
-            prompt=prompt,
-            temperature=temperature,
-            max_retries=max_retries, # Pass retries here
-            retry_delay=retry_delay   # Pass delay here
+        # Create a text generation pipeline ON THE FLY with the loaded components
+        pipe = pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature if temperature > 0 else None,
+            do_sample=temperature > 0,
+            pad_token_id=tokenizer.eos_token_id,
+            # Device is handled by accelerate (device_map="auto") when loading model
         )
+
+        # Handle chat formatted prompts vs raw text (similar logic as before)
+        is_chat_formatted = "<|start_header_id|>" in prompt and "<|end_header_id|>" in prompt
+        formatted_inputs = prompt # Default to using the prompt as is
+
+        if is_chat_formatted and hasattr(tokenizer, 'apply_chat_template'):
+            # Attempt to reconstruct messages if possible, otherwise use raw prompt
+            user_message_match = re.search(r"<\|start_header_id\|>user<\|end_header_id\|>\s*(.*?)\s*<\|eot_id\|>", prompt, re.DOTALL)
+            system_message_match = re.search(r"<\|start_header_id\|>system<\|end_header_id\|>\s*(.*?)\s*<\|eot_id\|>", prompt, re.DOTALL)
+
+            if user_message_match:
+                user_content = user_message_match.group(1).strip()
+                messages = []
+                if system_message_match:
+                    messages.append({"role": "system", "content": system_message_match.group(1).strip()})
+                messages.append({"role": "user", "content": user_content})
+                
+                # Let the tokenizer handle the template application for the pipeline
+                formatted_inputs = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                logging.debug(f"Applied chat template. Input to pipeline (start): {formatted_inputs[:100]}...")
+        
+        # Generate response using the pipeline
+        outputs = pipe(formatted_inputs)
+        response = outputs[0]['generated_text']
+        logging.debug(f"Pipeline output (start): {response[:100]}...")
+
+        # Remove the input prompt part from the pipeline output
+        # This is crucial as pipeline often includes the input
+        if response.startswith(formatted_inputs):
+            response = response[len(formatted_inputs):]
+        # Fallback: if original pre-formatted prompt was used, try removing that too
+        elif formatted_inputs == prompt and response.startswith(prompt):
+             response = response[len(prompt):]
+
+        if not response:
+            raise ValueError("Received empty response from local model pipeline")
+
+        response = response.strip() # Ensure clean output
+
+    except Exception as e:
+        logging.exception(f"Error during local generation pipeline: {e}") # Log stack trace
+        response = f"Error: Local generation failed - {str(e)}" # Set error response
 
     end_time = time.time()
     generation_time = end_time - start_time
@@ -337,10 +341,9 @@ async def evaluate_model_with_openai(
     local_model = None
     local_tokenizer = None
 
-    # --- Pre-load local model if necessary --- 
-    is_local_model = model_name.startswith(('/', './')) or model_name.endswith('Instruct')
-    if is_local_model and not test_mode:
-        logging.info(f"Attempting to load local model: {model_name}")
+    # --- Always load model locally --- 
+    if not test_mode:
+        logging.info(f"Loading model locally: {model_name}")
         try:
             # Device selection (prefer GPU if available)
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -352,10 +355,10 @@ async def evaluate_model_with_openai(
                 torch_dtype=torch.bfloat16, # Use bfloat16 for L4 compatibility
                 device_map="auto" # Automatically use available GPU(s)
             )
-            logging.info(f"Successfully loaded local model {model_name} onto device(s): {local_model.hf_device_map}")
+            logging.info(f"Successfully loaded model {model_name} onto device(s): {local_model.hf_device_map}")
         except Exception as e:
-            logging.exception(f"Failed to load local model {model_name}: {e}")
-            print(f"ERROR: Could not load the local model '{model_name}'. Please check the path/name and dependencies.")
+            logging.exception(f"Failed to load model {model_name}: {e}")
+            print(f"ERROR: Could not load the model '{model_name}'. Please check the path/name and dependencies.")
             # Exit or handle error appropriately - Cannot proceed without the model
             return # Stop evaluation if model loading fails
 
@@ -379,8 +382,8 @@ async def evaluate_model_with_openai(
         # Add the current user prompt
         messages.append({"role": "user", "content": original_prompt})
         
-        # Use the pre-loaded tokenizer if available
-        if is_local_model and local_tokenizer:
+        # Format the prompt using tokenizer if available, otherwise use a fallback format
+        if local_tokenizer and not test_mode:
             try:
                 formatted_prompt = local_tokenizer.apply_chat_template(
                     messages, 
@@ -388,22 +391,11 @@ async def evaluate_model_with_openai(
                     add_generation_prompt=True
                 ) 
             except Exception as e:
-                logging.warning(f"Error applying chat template with loaded tokenizer for scenario {i}: {e}. Falling back.")
-                formatted_prompt = f"System: {system_prompt}\nUser: {original_prompt}" # Basic fallback
-        elif is_local_model and not local_tokenizer: # Should not happen if loading succeeded
-             logging.error("Local model scenario but tokenizer not loaded. Using fallback prompt.")
-             formatted_prompt = f"System: {system_prompt}\nUser: {original_prompt}"
-        else: # Not a local model, format as before (or adapt if needed for Predibase)
-            # Assuming Predibase handles simple string inputs or its own templating
-            # Construct a basic string representation for Predibase if necessary
-            # This might need adjustment based on how generate_model_response expects input
-            prompt_parts = [f"System: {system_prompt}"]
-            for msg in conversation_history:
-                 prompt_parts.append(f"{msg['role'].capitalize()}: {msg['content']}")
-            prompt_parts.append(f"User: {original_prompt}")
-            formatted_prompt = "\n".join(prompt_parts) 
-            # Add a placeholder for the assistant's turn if the model expects it
-            formatted_prompt += "\nAssistant:" 
+                logging.warning(f"Error applying chat template with tokenizer for scenario {i}: {e}. Using fallback format.")
+                formatted_prompt = _create_fallback_prompt(messages)
+        else:
+            # Fallback format for test mode or if tokenizer isn't available
+            formatted_prompt = _create_fallback_prompt(messages)
 
         # --- Generate model response --- 
         model_response, generation_time = _generate_response(
