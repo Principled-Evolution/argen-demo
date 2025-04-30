@@ -1,0 +1,23 @@
+2025-04-30 12:10:58,662 INFO    MainThread:112651 [wandb_setup.py:_flush():68] Current SDK version is 0.19.10
+2025-04-30 12:10:58,662 INFO    MainThread:112651 [wandb_setup.py:_flush():68] Configure stats pid to 112651
+2025-04-30 12:10:58,662 INFO    MainThread:112651 [wandb_setup.py:_flush():68] Loading settings from /home/kapil/.config/wandb/settings
+2025-04-30 12:10:58,662 INFO    MainThread:112651 [wandb_setup.py:_flush():68] Loading settings from /home/kapil/argen-demo/wandb/settings
+2025-04-30 12:10:58,663 INFO    MainThread:112651 [wandb_setup.py:_flush():68] Loading settings from environment variables
+2025-04-30 12:10:58,663 INFO    MainThread:112651 [wandb_init.py:setup_run_log_directory():724] Logging user logs to /home/kapil/argen-demo/wandb/run-20250430_121058-rj8hv7ry/logs/debug.log
+2025-04-30 12:10:58,663 INFO    MainThread:112651 [wandb_init.py:setup_run_log_directory():725] Logging internal logs to /home/kapil/argen-demo/wandb/run-20250430_121058-rj8hv7ry/logs/debug-internal.log
+2025-04-30 12:10:58,663 INFO    MainThread:112651 [wandb_init.py:init():852] calling init triggers
+2025-04-30 12:10:58,663 INFO    MainThread:112651 [wandb_init.py:init():857] wandb.init called with sweep_config: {}
+config: {'model': 'unsloth/Llama-3.2-1B-Instruct', 'scenarios': 'data/combined_predibase_updated.jsonl', 'use_basic_prompt': False, 'use_separate_rewards': False, 'ahimsa_weight': 1.0, 'dharma_weight': 1.0, 'beta': 0.1, 'learning_rate': 5e-06, 'num_train_epochs': 3, 'gradient_accumulation_steps': 2, 'num_generations': 2, 'mini_repeat_count': 2, 'per_device_train_batch_size': 2, 'max_prompt_length': 512, 'max_completion_length': 512, 'disable_dropout': True, 'warmup_steps': 5, 'logging_steps': 1, 'fp16': True, 'output_dir': 'output/Llama-3.2-1B-Instruct-grpo', '_wandb': {}}
+2025-04-30 12:10:58,663 INFO    MainThread:112651 [wandb_init.py:init():893] starting backend
+2025-04-30 12:10:58,663 INFO    MainThread:112651 [wandb_init.py:init():897] sending inform_init request
+2025-04-30 12:10:58,670 INFO    MainThread:112651 [backend.py:_multiprocessing_setup():101] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-04-30 12:10:58,670 INFO    MainThread:112651 [wandb_init.py:init():907] backend started and connected
+2025-04-30 12:10:58,676 INFO    MainThread:112651 [wandb_init.py:init():1002] updated telemetry
+2025-04-30 12:10:58,682 INFO    MainThread:112651 [wandb_init.py:init():1026] communicating run to backend with 90.0 second timeout
+2025-04-30 12:10:58,985 INFO    MainThread:112651 [wandb_init.py:init():1101] starting run threads in backend
+2025-04-30 12:10:59,112 INFO    MainThread:112651 [wandb_run.py:_console_start():2566] atexit reg
+2025-04-30 12:10:59,112 INFO    MainThread:112651 [wandb_run.py:_redirect():2414] redirect: wrap_raw
+2025-04-30 12:10:59,112 INFO    MainThread:112651 [wandb_run.py:_redirect():2483] Wrapping output streams.
+2025-04-30 12:10:59,112 INFO    MainThread:112651 [wandb_run.py:_redirect():2506] Redirects installed.
+2025-04-30 12:10:59,115 INFO    MainThread:112651 [wandb_init.py:init():1147] run started, returning control to user process
+2025-04-30 12:10:59,151 INFO    MsgRouterThr:112651 [mailbox.py:close():129] [no run ID] Closing mailbox, abandoning 2 handles.

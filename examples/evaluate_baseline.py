@@ -17,6 +17,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.utils.env import load_env_vars, get_openai_api_key
 from src.evaluation.openai_evaluator import evaluate_model_with_openai
+from src.config import (
+    DEFAULT_MODEL_ID,
+    DEFAULT_SCENARIOS_PATH,
+    DEFAULT_OUTPUT_BASE,
+    DEFAULT_TEMPERATURE,
+    get_system_prompt
+)
 
 
 def check_dependencies():
@@ -62,20 +69,37 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        # Default to the Unsloth model identifier for local execution
-        default="unsloth/Llama-3.2-1B-Instruct",
-        help="Name/identifier of the model to evaluate (e.g., Predibase name, HF identifier like 'unsloth/Llama-3.2-1B-Instruct', or local path)"
+        default=DEFAULT_MODEL_ID,
+        help="Name/identifier of the model to evaluate (e.g., HF identifier like 'unsloth/Llama-3.2-1B-Instruct', or local path)"
     )
-    parser.add_argument("--scenarios", type=str, default="data/combined_predibase_updated.jsonl", help="Path to the scenarios file")
+    parser.add_argument(
+        "--scenarios", 
+        type=str,
+        default=DEFAULT_SCENARIOS_PATH,
+        help="Path to the scenarios file"
+    )
     parser.add_argument(
         "--output_base",
         type=str,
-        default="data/baseline_openai_results",
+        default=DEFAULT_OUTPUT_BASE,
         help="Base path and filename for the evaluation results (timestamp and .json will be added)"
     )
-    parser.add_argument("--test", action="store_true", help="Run in test mode with mock responses")
-    parser.add_argument("--temperature", type=float, default=0.9, help="Temperature for generation (higher = more random)")
-    parser.add_argument("--use_basic_prompt", action="store_true", help="Use the original basic system prompt instead of the enhanced 'fairer' one.")
+    parser.add_argument(
+        "--test", 
+        action="store_true", 
+        help="Run in test mode with mock responses"
+    )
+    parser.add_argument(
+        "--temperature", 
+        type=float,
+        default=DEFAULT_TEMPERATURE,
+        help="Temperature for generation (higher = more random)"
+    )
+    parser.add_argument(
+        "--use_basic_prompt", 
+        action="store_true", 
+        help="Use the original basic system prompt instead of the enhanced 'fairer' one."
+    )
     
     args = parser.parse_args()
     
@@ -101,7 +125,7 @@ def main():
         os.makedirs(output_dir)
 
     # Check for local inference dependencies if using a local model
-    is_local_model = args.model.startswith(('/', './')) or args.model == "unsloth/Llama-3.2-1B-Instruct"
+    is_local_model = args.model.startswith(('/', './')) or args.model == DEFAULT_MODEL_ID
     if is_local_model:
         print("Local model specified, checking dependencies...")
         if not check_dependencies():
