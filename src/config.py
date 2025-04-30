@@ -50,7 +50,7 @@ GRPO_CONFIG = {
     "disable_dropout": True,
     "warmup_steps": 5,
     "logging_steps": 1,
-    "fp16": True,
+    "bf16": True,                  # Changed from fp16 to bf16
     "output_dir": "output"
 }
 

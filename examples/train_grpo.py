@@ -239,14 +239,14 @@ def main():
         disable_dropout=grpo_config["disable_dropout"],
         warmup_steps=grpo_config["warmup_steps"],
         logging_steps=grpo_config["logging_steps"],
-        fp16=grpo_config["fp16"],
+        bf16=grpo_config["bf16"],
         reward_weights=reward_weights,
         report_to=["wandb"]
     )
     
     # Add model initialization kwargs - don't include system_prompt here
     model_init_kwargs = {
-        "torch_dtype": "bfloat16",
+        "torch_dtype": torch.bfloat16,
     }
     trl_config.model_init_kwargs = model_init_kwargs
     
