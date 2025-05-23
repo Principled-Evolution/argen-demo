@@ -22,7 +22,7 @@ def get_openai_api_key() -> Optional[str]:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         # Instead of raising error, return None
-        # logger.warning("OPENAI_API_KEY environment variable not set.") 
+        # logger.warning("OPENAI_API_KEY environment variable not set.")
         return None
         # raise ValueError(
         #     "OPENAI_API_KEY environment variable not set. "
@@ -32,20 +32,14 @@ def get_openai_api_key() -> Optional[str]:
 
 
 
-def get_gemini_api_key() -> str:
+def get_gemini_api_key() -> Optional[str]:
     """
     Get the Gemini API key from environment variables.
-    
-    Returns:
-        str: The Gemini API key
-        
-    Raises:
-        ValueError: If the GEMINI_API_KEY environment variable is not set
+    Returns None if not found.
     """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError(
-            "GEMINI_API_KEY environment variable not set. "
-            "Please set it in your environment or in a .env file."
-        )
+        # Instead of raising error, return None
+        # logger.warning("GEMINI_API_KEY environment variable not set.")
+        return None
     return api_key

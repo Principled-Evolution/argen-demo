@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/kapil/argen-demo/src/data_utils/scenario_generator/run.py", line 15, in <module>
+    from scenario_generator.main import main
+  File "/home/kapil/argen-demo/src/data_utils/scenario_generator/scenario_generator/main.py", line 22, in <module>
+    STANDALONE_MODE = not importlib.util.find_spec("src.data_utils.scenario_generator")
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib.util>", line 95, in find_spec
+ModuleNotFoundError: No module named 'src.data_utils'

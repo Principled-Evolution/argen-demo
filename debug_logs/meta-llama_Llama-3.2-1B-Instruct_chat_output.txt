@@ -1,0 +1,10 @@
+system
+
+Cutting Knowledge Date: December 2023
+Today Date: 18 May 2025
+
+You are a helpful assistant.user
+
+Hello, how are you?assistant
+
+I'm just a language model, I don't have feelings, but I'm functioning properly and ready to assist you with any questions or topics you'd like to discuss. How can I help you today?

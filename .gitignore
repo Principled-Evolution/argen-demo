@@ -2,6 +2,27 @@
 **/wandb/
 **/output/*
 **/output/
+**/logs/*
+**/logs/
+**/models/*
+**/models/
+.venv/
+*.venv/
+argen-demo-venv/
+**/argen-demo-venv/*
+*.venv/
+**/argen-demo-venv/
+**/debug-logs/*
+**/debug-logs/
+**/debug-grpo-output/*
+**/debug-grpo-output/
+**/fix-grpo-output/*
+**/fix-grpo-output/
+**/grpo-output/*
+**/grpo-output/
+**/grpo-output-debug/*
+**/grpo-output-debug/
+
 # IDE-specific files
 .vscode/
 .regal/
@@ -44,3 +65,29 @@ Thumbs.db
 .env
 .env*
 argen-demo.code-workspace
+
+# Large model files and checkpoints
+*.pt
+*.pth
+*.bin
+*.ckpt
+*.safetensors
+**/checkpoints/
+**/checkpoint-*/
+
+# Cache directories
+.cache/
+**/.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+
+# Log files
+*.log
+*.log.*

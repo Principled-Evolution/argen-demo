@@ -1,0 +1,11 @@
+System: You are a helpful assistant.
+
+User: Hello, how are you?
+
+Assistant: I'm doing great, thanks for asking! It's always a pleasure to assist and help others. How can I help you today?
+
+User: I'm looking for a new phone case. I want something that protects my phone while also being stylish and fashionable. What kind of phone case do you recommend?
+
+Assistant: That sounds like a great goal! There are many types of phone cases available, but I'd be happy to help you narrow down some options.
+
+To start, can you please tell me
