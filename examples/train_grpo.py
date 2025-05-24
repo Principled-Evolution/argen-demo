@@ -164,6 +164,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainerCallback, T
 from transformers.integrations import WandbCallback
 from transformers.trainer_utils import is_main_process
 from transformers.trainer_callback import EarlyStoppingCallback
+import numpy as np
 from datasets import Dataset, load_dataset
 
 from src.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
@@ -723,6 +724,47 @@ class CustomWandbLoggingCallback(TrainerCallback):
                 trl_rewards_module._audit_log_data.clear()
             # ---
 
+# --- ADD LinearBetaScheduler for KL Beta Scheduling ---
+class LinearBetaScheduler(TrainerCallback):
+    """
+    Linearly decays trainer.beta from beta_start → beta_end
+    over `total_steps` steps.
+    """
+    def __init__(self, beta_start, beta_end, total_steps, schedule_type="linear"):
+        self.beta_start = beta_start
+        self.beta_end = beta_end
+        self.total_steps = total_steps
+        self.schedule_type = schedule_type
+        logger.info(f"Initialized {schedule_type} beta scheduler: {beta_start} → {beta_end} over {total_steps} steps")
+
+    def on_step_begin(self, args, state, control, **kwargs):
+        if state.global_step >= self.total_steps:
+            new_beta = self.beta_end
+        else:
+            pct = state.global_step / self.total_steps
+            if self.schedule_type == "linear":
+                new_beta = (1 - pct) * self.beta_start + pct * self.beta_end
+            elif self.schedule_type == "cosine":
+                # Cosine schedule: smoother decay
+                new_beta = self.beta_end + 0.5 * (self.beta_start - self.beta_end) * (1 + np.cos(np.pi * pct))
+            else:
+                # Default to linear
+                new_beta = (1 - pct) * self.beta_start + pct * self.beta_end
+
+        # Update the trainer's beta value - we'll set this via the trainer reference
+        # The trainer will be set via callback after initialization
+        if hasattr(self, '_trainer') and self._trainer:
+            self._trainer.beta = new_beta
+
+        # Log the beta value
+        if state.is_local_process_zero:
+            import wandb
+            wandb.log({"kl_beta": new_beta}, step=state.global_step, commit=False)
+
+    def set_trainer(self, trainer):
+        """Set trainer reference after initialization."""
+        self._trainer = trainer
+
 # --- ADD New Callback to Log Manual Eval Command ---
 class LogEvalCommandCallback(TrainerCallback):
     """Logs the command needed to run manual evaluation when a checkpoint is saved."""
@@ -1250,9 +1292,9 @@ def main():
     parser.add_argument("--gradient_checkpointing", type=lambda x: x.lower() == 'true', default=None,
                       help="Whether to use gradient checkpointing")
     parser.add_argument("--kl_beta_end", type=float, default=None,
-                      help="Final KL beta value")
+                      help="Final KL beta value (for custom beta scheduling - not yet implemented)")
     parser.add_argument("--beta_schedule", type=str, default=None,
-                      help="KL beta schedule type")
+                      help="KL beta schedule type (for custom beta scheduling - not yet implemented)")
     parser.add_argument("--logging_steps", type=int, default=None,
                       help="Log every X updates steps")
     parser.add_argument("--report_to", type=str, nargs="+", default=None,
@@ -1310,6 +1352,21 @@ def main():
                       help="Temperature for model generation during training (overrides config default)")
     parser.add_argument("--eval_temperature", type=float, default=None,
                       help="Temperature for evaluation calls (overrides config default)")
+
+    # Add missing GRPO-specific parameters that are in your command line
+    parser.add_argument("--loss_type", type=str,
+                      choices=["grpo", "bnpo", "dr_grpo"], default=None,
+                      help="Loss formulation to use (grpo, bnpo, dr_grpo)")
+    parser.add_argument("--scale_reward", type=lambda x: x.lower() == 'true', default=None,
+                      help="Whether to scale rewards by their standard deviation")
+    parser.add_argument("--epsilon", type=float, default=None,
+                      help="Epsilon value for clipping")
+    parser.add_argument("--sync_ref_model", type=lambda x: x.lower() == 'true', default=None,
+                      help="Whether to synchronize reference model with active model")
+    parser.add_argument("--ref_model_mixup_alpha", type=float, default=None,
+                      help="Alpha parameter for reference model mixup (TR-DPO)")
+    parser.add_argument("--ref_model_sync_steps", type=int, default=None,
+                      help="How frequently to sync reference policy (TR-DPO tau parameter)")
 
     print("--- RIGHT BEFORE PARSE_ARGS (direct print) ---")
     logger.info("--- RIGHT BEFORE PARSE_ARGS (logger.info) ---")
@@ -1603,6 +1660,13 @@ def main():
             if args.use_separate_rewards
             else None
         ),
+        # --- ADDED: Pass new GRPO-specific parameters from command line ---
+        loss_type=args.loss_type if args.loss_type is not None else grpo_config.get("loss_type", "bnpo"),
+        scale_rewards=args.scale_reward if args.scale_reward is not None else grpo_config.get("scale_rewards", True),
+        epsilon=args.epsilon if args.epsilon is not None else grpo_config.get("epsilon", 0.2),
+        sync_ref_model=args.sync_ref_model if args.sync_ref_model is not None else grpo_config.get("sync_ref_model", False),
+        ref_model_mixup_alpha=args.ref_model_mixup_alpha if args.ref_model_mixup_alpha is not None else grpo_config.get("ref_model_mixup_alpha", 0.6),
+        ref_model_sync_steps=args.ref_model_sync_steps if args.ref_model_sync_steps is not None else grpo_config.get("ref_model_sync_steps", 512),
         # --- END ADDED ---
     )
 
@@ -1614,6 +1678,29 @@ def main():
     if args.minimum_lr is not None:
         trl_config.min_lr = args.minimum_lr
         logger.info(f"Setting minimum learning rate to {args.minimum_lr}")
+
+    # Handle beta scheduling parameters
+    beta_scheduler_callback = None
+    if args.kl_beta_end is not None and args.kl_beta_start is not None:
+        # Calculate total training steps for beta scheduling
+        steps_per_epoch = len(train_dataset) // (
+            trl_config.per_device_train_batch_size *
+            trl_config.gradient_accumulation_steps *
+            (torch.cuda.device_count() if torch.cuda.is_available() else 1)
+        )
+        total_steps = int(trl_config.num_train_epochs * steps_per_epoch)
+
+        schedule_type = args.beta_schedule if args.beta_schedule is not None else "linear"
+        beta_scheduler_callback = LinearBetaScheduler(
+            beta_start=args.kl_beta_start,
+            beta_end=args.kl_beta_end,
+            total_steps=total_steps,
+            schedule_type=schedule_type
+        )
+        logger.info(f"Beta scheduling enabled: {args.kl_beta_start} → {args.kl_beta_end} over {total_steps} steps ({schedule_type})")
+    elif args.kl_beta_end is not None or args.beta_schedule is not None:
+        logger.warning("Beta scheduling requires both kl_beta_start and kl_beta_end to be specified.")
+        logger.warning("Using static beta value from kl_beta_start.")
 
     # Override save_steps if provided via CLI and strategy is 'steps'
     if args.save_strategy == "steps" and args.save_steps is not None:
@@ -1798,6 +1885,12 @@ def main():
     trainer.add_callback(custom_logging_callback)
     trainer.add_callback(log_eval_command_callback) # ADD the new callback
     trainer.add_callback(console_metrics_callback)
+
+    # Add beta scheduler callback if enabled
+    if beta_scheduler_callback is not None:
+        beta_scheduler_callback.set_trainer(trainer)
+        trainer.add_callback(beta_scheduler_callback)
+        logger.info("Added LinearBetaScheduler callback for KL beta scheduling")
 
     # Add adaptive weights callback if enabled and using separate rewards
     if args.use_separate_rewards and args.adaptive_weights != "none":
