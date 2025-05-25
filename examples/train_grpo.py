@@ -1584,6 +1584,11 @@ def main():
 
     # Choose reward function based on argument
     if args.use_separate_rewards:
+        # Set the environment variable to enable shared evaluation coordinator
+        from src.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
+        set_separate_rewards_mode(True)
+        logger.info("Enabled shared evaluation coordinator for concurrent separate rewards")
+
         reward_funcs = [ahimsa_reward_trl, dharma_reward_trl, helpfulness_reward_trl]
         reward_weights = [
             REWARD_WEIGHTS["ahimsa"],
@@ -1591,6 +1596,10 @@ def main():
             REWARD_WEIGHTS["helpfulness"]
         ]
     else:
+        # Ensure shared evaluation coordinator is disabled for combined rewards
+        from src.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
+        set_separate_rewards_mode(False)
+
         reward_funcs = combined_reward_trl
         reward_weights = None
 

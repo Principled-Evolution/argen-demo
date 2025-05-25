@@ -168,13 +168,22 @@ async def evaluate_dharma_with_gemini(
     Please provide your evaluation in the specified JSON format.
     """
 
-    # Integrate retry logic here
-    max_retries = 3
-    retry_delay = 5
+    # Integrate retry logic here with enhanced control character handling
+    max_retries = 5  # Increased from 3 to handle control character issues
+    base_retry_delay = 3  # Base delay in seconds
     evaluation_result = None
 
     for attempt in range(max_retries):
+        # Calculate exponential backoff delay
+        retry_delay = base_retry_delay * (2 ** attempt)
         try:
+            # Modify the user prompt for retry attempts to avoid control characters
+            current_user_prompt = user_prompt_content
+            if attempt > 0:
+                # Import the helper function
+                from src.reward_functions.gemini_rewards import create_control_character_retry_prompt
+                current_user_prompt = create_control_character_retry_prompt(user_prompt_content, attempt + 1)
+
             # Define a synchronous function to make the Gemini API call
             def make_gemini_call():
                 # Use Gemini-2.0-flash model
@@ -189,8 +198,8 @@ async def evaluate_dharma_with_gemini(
                     {"role": "model", "parts": ["I understand my role as a domain-scope auditor for a healthcare & health-policy assistant. I'll evaluate the AI response based on whether it stays within the healthcare domain, following the scope rules provided. I'll return my evaluation in the specified JSON format."]}
                 ])
 
-                # Send the user prompt
-                response = chat.send_message(user_prompt_content)
+                # Send the user prompt (potentially modified for retries)
+                response = chat.send_message(current_user_prompt)
                 return response.text
 
             # Run the synchronous function in a thread
@@ -213,6 +222,11 @@ async def evaluate_dharma_with_gemini(
 
             if content:
                 try:
+                    # Check for control characters before processing
+                    from src.reward_functions.gemini_rewards import detect_control_characters
+                    if detect_control_characters(content):
+                        logger.warning(f"Gemini Dharma attempt {attempt + 1}: Control characters detected in response, will sanitize")
+
                     # Extract JSON from the response
                     if "```json" in content and "```" in content:
                         json_content = content.split("```json")[1].split("```")[0].strip()
@@ -220,6 +234,9 @@ async def evaluate_dharma_with_gemini(
                         json_content = content.split("```")[1].split("```")[0].strip()
                     else:
                         json_content = content
+
+                    # Preprocess the JSON content to fix common issues including control characters
+                    json_content = preprocess_json_content(json_content)
 
                     # Use Pydantic model to parse and validate the response
                     try:
@@ -231,16 +248,22 @@ async def evaluate_dharma_with_gemini(
                         if VERBOSE_LOGGING: # Uses VERBOSE_LOGGING defined in this file
                             logger.info(f"Successfully received and parsed Gemini Dharma response (attempt {attempt + 1}).")
                         break  # Exit retry loop on success
+                    except json.JSONDecodeError as json_err:
+                        error_msg = f"Gemini Dharma attempt {attempt + 1}: JSON decode error: {json_err}"
+                        if "control character" in str(json_err).lower():
+                            error_msg += " (Control character detected)"
+                        logger.error(error_msg)
+                        logger.error(f"Original Prompt: '{original_prompt}', Full Model Response: '{model_response}'")
                     except Exception as json_err:
                         logger.error(f"Gemini Dharma attempt {attempt + 1}: Error during API call. "
                                      f"Original Prompt: '{original_prompt}', "
                                      f"Full Model Response: '{model_response}'")
-                        logger.error(f"Gemini Dharma attempt {attempt + 1}: Failed to parse JSON with Pydantic: {json_err}\nContent: {content}")
+                        logger.error(f"Gemini Dharma attempt {attempt + 1}: Failed to parse JSON with Pydantic: {json_err}\nContent: {content[:500]}...")
                 except Exception as e:
                     logger.error(f"Gemini Dharma attempt {attempt + 1}: Error processing content (outer). "
                                  f"Original Prompt: '{original_prompt}', "
                                  f"Full Model Response: '{model_response}'")
-                    logger.error(f"Gemini Dharma attempt {attempt + 1}: Error processing content: {e}\nContent: {content}")
+                    logger.error(f"Gemini Dharma attempt {attempt + 1}: Error processing content: {e}\nContent: {content[:500]}...")
             else:
                 logger.warning(f"Gemini Dharma attempt {attempt + 1}: Received empty content.")
 
@@ -585,11 +608,13 @@ Input Pairs:
         logger.info(f"[Dharma Multi-Eval DEBUG] User prompt content to Gemini (first 500 chars): {user_prompt_content[:500]}...")
         logger.info(f"[Dharma Multi-Eval DEBUG] Full Gemini input pairs (JSON): {json.dumps(gemini_input_pairs, indent=2)}")
 
-    max_retries = 3
-    retry_delay = 5
+    max_retries = 5  # Increased from 3 to handle control character issues
+    base_retry_delay = 3  # Base delay in seconds
     gemini_response_text = None
 
     for attempt in range(max_retries):
+        # Calculate exponential backoff delay
+        retry_delay = base_retry_delay * (2 ** attempt)
         try:
             def make_gemini_call():
                 model = TrackedGenerativeModel(
@@ -636,6 +661,11 @@ Input Pairs:
     results = []
     parsed_evaluations = None
     try:
+        # Check for control characters before processing
+        from src.reward_functions.gemini_rewards import detect_control_characters
+        if detect_control_characters(gemini_response_text):
+            logger.warning(f"Gemini Dharma multi-eval: Control characters detected in response, will sanitize")
+
         json_match = re.search(r'```json\s*(\[.*?\])\s*```', gemini_response_text, re.DOTALL)
         if json_match:
             json_content_array_str = json_match.group(1)
@@ -649,6 +679,7 @@ Input Pairs:
                 track_gemini_error() # For the batch
                 return [DEFAULT_DHARMA_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
 
+        # Preprocess the JSON content to fix common issues including control characters
         json_content_array_str = preprocess_json_content(json_content_array_str)
         parsed_evaluations = json.loads(json_content_array_str)
 
@@ -663,6 +694,13 @@ Input Pairs:
             track_gemini_error() # For the batch
             return [DEFAULT_DHARMA_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
 
+    except json.JSONDecodeError as json_err:
+        error_msg = f"Gemini Dharma multi-eval: JSON decode error: {json_err}"
+        if "control character" in str(json_err).lower():
+            error_msg += " (Control character detected)"
+        logger.error(f"{error_msg}. Response: {gemini_response_text[:500]}")
+        track_gemini_error() # For the batch
+        return [DEFAULT_DHARMA_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
     except Exception as e:
         logger.error(f"Gemini Dharma multi-eval: Error parsing batch JSON response: {e}. Response: {gemini_response_text[:500]}")
         track_gemini_error() # For the batch

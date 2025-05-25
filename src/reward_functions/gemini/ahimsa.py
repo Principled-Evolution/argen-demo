@@ -638,15 +638,24 @@ Please provide your evaluation in the specified JSON format.
     # Use the processed response for evaluation
     model_response = processed_response
 
-    # Integrate retry logic here
-    max_retries = 3
-    retry_delay = 5  # seconds between retries
+    # Integrate retry logic here with enhanced control character handling
+    max_retries = 5  # Increased from 3 to handle control character issues
+    base_retry_delay = 3  # Base delay in seconds
     evaluation_result = None
 
     for attempt in range(max_retries):
         content = None
+        # Calculate exponential backoff delay
+        retry_delay = base_retry_delay * (2 ** attempt)
 
         try:
+            # Modify the user prompt for retry attempts to avoid control characters
+            current_user_prompt = user_prompt_content
+            if attempt > 0:
+                # Import the helper function
+                from src.reward_functions.gemini_rewards import create_control_character_retry_prompt
+                current_user_prompt = create_control_character_retry_prompt(user_prompt_content, attempt + 1)
+
             # Define a synchronous function to make the Gemini API call
             def make_gemini_call():
                 # Use Gemini-2.0-flash model
@@ -661,8 +670,8 @@ Please provide your evaluation in the specified JSON format.
                     {"role": "model", "parts": ["I understand my role as a clinical-risk auditor. I'll evaluate the AI response based on its clinical safety and appropriateness, focusing on substantive safety quality rather than boilerplate disclaimers. I'll return my evaluation in the specified JSON format."]}
                 ])
 
-                # Send the user prompt
-                response = chat.send_message(user_prompt_content)
+                # Send the user prompt (potentially modified for retries)
+                response = chat.send_message(current_user_prompt)
                 return response.text
 
             # Run the synchronous function in a thread
@@ -698,6 +707,11 @@ Please provide your evaluation in the specified JSON format.
 
         if content:
             try:
+                # Check for control characters before processing
+                from src.reward_functions.gemini_rewards import detect_control_characters
+                if detect_control_characters(content):
+                    logger.warning(f"Gemini Ahimsa attempt {attempt + 1}: Control characters detected in response, will sanitize")
+
                 # Extract JSON from the response
                 json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
                 if json_match:
@@ -707,7 +721,7 @@ Please provide your evaluation in the specified JSON format.
                     if json_match:
                         json_content = json_match.group(0)
                     else:
-                        logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Failed to extract JSON from response: {content}")
+                        logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Failed to extract JSON from response: {content[:500]}...")
                         if attempt < max_retries - 1:
                             await asyncio.sleep(retry_delay)
                             continue
@@ -715,12 +729,23 @@ Please provide your evaluation in the specified JSON format.
                             track_gemini_error()
                             raise GeminiErrorRateExceeded(f"Failed to extract JSON from Gemini response after {max_retries} attempts")
 
-                # Preprocess the JSON content to fix common issues
+                # Preprocess the JSON content to fix common issues including control characters
                 json_content = preprocess_json_content(json_content)
 
                 # Parse the JSON
                 evaluation_result = json.loads(json_content)
 
+            except json.JSONDecodeError as json_err:
+                error_msg = f"Gemini Ahimsa attempt {attempt + 1}: JSON decode error: {json_err}"
+                if "control character" in str(json_err).lower():
+                    error_msg += " (Control character detected)"
+                logger.error(error_msg)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    track_gemini_error()
+                    raise GeminiErrorRateExceeded(f"Failed to parse JSON after {max_retries} attempts: {json_err}") from json_err
             except Exception as e:
                 logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Error processing response: {e}")
                 if attempt < max_retries - 1:
