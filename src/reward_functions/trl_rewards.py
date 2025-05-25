@@ -125,6 +125,26 @@ def ahimsa_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict
     Returns:
         List of Ahimsa reward scores
     """
+    # Check if we're in separate rewards mode and should use shared coordinator
+    from src.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
+
+    if is_separate_rewards_mode():
+        logger.info("ahimsa_reward_trl: Using shared evaluation coordinator for concurrent evaluation")
+        coordinator = get_shared_coordinator()
+
+        # Use the coordinator to get results, triggering concurrent evaluation if needed
+        results = coordinator.get_or_evaluate_batch_sync(
+            reward_type="ahimsa",
+            prompts=prompts,
+            completions=completions,
+            **kwargs
+        )
+
+        # Extract scores and return
+        rewards = [result.get("ahimsa_score", 0.0) for result in results]
+        logger.info(f"ahimsa_reward_trl: Returning {len(rewards)} scores from shared coordinator")
+        return rewards
+
     # ── sanity-check that we really got G completions per prompt ──
     G = GRPO_CONFIG["num_generations"]                                     # or read from cfg
     assert len(prompts) == len(completions)
@@ -283,6 +303,26 @@ def dharma_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict
     Returns:
         List of Dharma reward scores
     """
+    # Check if we're in separate rewards mode and should use shared coordinator
+    from src.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
+
+    if is_separate_rewards_mode():
+        logger.info("dharma_reward_trl: Using shared evaluation coordinator for concurrent evaluation")
+        coordinator = get_shared_coordinator()
+
+        # Use the coordinator to get results, triggering concurrent evaluation if needed
+        results = coordinator.get_or_evaluate_batch_sync(
+            reward_type="dharma",
+            prompts=prompts,
+            completions=completions,
+            **kwargs
+        )
+
+        # Extract scores and return
+        rewards = [result.get("dharma_score", 0.0) for result in results]
+        logger.info(f"dharma_reward_trl: Returning {len(rewards)} scores from shared coordinator")
+        return rewards
+
     # Process completions to extract content from chat responses
     processed_completions = process_completions(completions)
 
@@ -449,6 +489,26 @@ def helpfulness_reward_trl(prompts: List[str], completions: List[Union[str, List
     Returns:
         List of Helpfulness reward scores
     """
+    # Check if we're in separate rewards mode and should use shared coordinator
+    from src.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
+
+    if is_separate_rewards_mode():
+        logger.info("helpfulness_reward_trl: Using shared evaluation coordinator for concurrent evaluation")
+        coordinator = get_shared_coordinator()
+
+        # Use the coordinator to get results, triggering concurrent evaluation if needed
+        results = coordinator.get_or_evaluate_batch_sync(
+            reward_type="helpfulness",
+            prompts=prompts,
+            completions=completions,
+            **kwargs
+        )
+
+        # Extract scores and return
+        rewards = [result.get("helpfulness_score", 0.0) for result in results]
+        logger.info(f"helpfulness_reward_trl: Returning {len(rewards)} scores from shared coordinator")
+        return rewards
+
     # Process completions to extract content from chat responses
     processed_completions = process_completions(completions)
 
@@ -640,181 +700,13 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
             logger.info(f"[Combined TRL Debug] First processed_completion in batch: {processed_completions[0][:500]}...")
     # --- END ADDED ---
 
-    # Create a list of coroutines to run concurrently
-    async def run_all_evaluations():
-        # Extract actual tiers *before* creating tasks
-        actual_tiers_for_eval = [extract_tier_from_compound(t) for t in compound_tiers]
+    # Use the unified evaluation logic for consistent concurrent evaluation
+    from src.reward_functions.unified_evaluation import evaluate_all_rewards_concurrently
 
-        if evaluator == "openai":
-            openai_tasks = []
-            for idx, (prompt, completion) in enumerate(zip(prompts, processed_completions)):
-                actual_tier = actual_tiers_for_eval[idx]
-                current_prompt_meta = {"tier": actual_tier}
-                compound_scope = kwargs.get("scope", [])[idx] if "scope" in kwargs and idx < len(kwargs["scope"]) else None
-                if compound_scope:
-                    current_prompt_meta["scope"] = compound_scope
-
-                ahimsa_task = evaluate_ahimsa_with_openai(
-                    prompt, completion, api_key, original_prompt_meta=current_prompt_meta
-                )
-                dharma_task = evaluate_dharma_with_openai(
-                    prompt, completion, api_key, original_prompt_meta=current_prompt_meta
-                )
-                helpfulness_task = evaluate_helpfulness_with_openai(prompt, completion, api_key)
-                openai_tasks.append((ahimsa_task, dharma_task, helpfulness_task))
-
-            ahimsa_tasks_only, dharma_tasks_only, helpfulness_tasks_only = zip(*openai_tasks)
-            ahimsa_results = await asyncio.gather(*ahimsa_tasks_only)
-            dharma_results = await asyncio.gather(*dharma_tasks_only)
-            helpfulness_results = await asyncio.gather(*helpfulness_tasks_only)
-        else:  # evaluator == "gemini"
-            # Check if we should use single calls or batch calls for training
-            use_single_calls = GRPO_CONFIG.get("use_single_gemini_calls_for_training", True)
-
-            if use_single_calls:
-                # Single-call approach: one Gemini API call per prompt+completion pair for each reward function
-                logger.info(f"combined_reward_trl: Using single-call approach for {len(prompts)} items")
-
-                # Import the single evaluation functions
-                from src.reward_functions.gemini.ahimsa import evaluate_ahimsa_with_gemini
-                from src.reward_functions.gemini.dharma import evaluate_dharma_with_gemini
-                from src.reward_functions.gemini.helpfulness import evaluate_helpfulness_with_gemini
-
-                # Set up semaphore for concurrency control
-                max_concurrent = GRPO_CONFIG.get("gemini_single_call_max_concurrent", 200)
-                semaphore = asyncio.Semaphore(max_concurrent)
-
-                async def evaluate_ahimsa_single_with_semaphore(prompt, completion, prompt_meta):
-                    async with semaphore:
-                        return await evaluate_ahimsa_with_gemini(prompt, completion, original_prompt_meta=prompt_meta)
-
-                async def evaluate_dharma_single_with_semaphore(prompt, completion, prompt_meta):
-                    async with semaphore:
-                        return await evaluate_dharma_with_gemini(prompt, completion, original_prompt_meta=prompt_meta)
-
-                async def evaluate_helpfulness_single_with_semaphore(prompt, completion):
-                    async with semaphore:
-                        return await evaluate_helpfulness_with_gemini(prompt, completion)
-
-                # Create tasks for all prompt+completion pairs
-                ahimsa_tasks = []
-                dharma_tasks = []
-                helpfulness_tasks = []
-
-                for idx, (prompt, completion) in enumerate(zip(prompts, processed_completions)):
-                    actual_tier = actual_tiers_for_eval[idx]
-                    current_prompt_meta = {"tier": actual_tier}
-                    compound_scope = kwargs.get("scope", [])[idx] if "scope" in kwargs and idx < len(kwargs["scope"]) else None
-                    if compound_scope:
-                        current_prompt_meta["scope"] = compound_scope
-
-                    ahimsa_tasks.append(evaluate_ahimsa_single_with_semaphore(prompt, completion, current_prompt_meta))
-                    dharma_tasks.append(evaluate_dharma_single_with_semaphore(prompt, completion, current_prompt_meta))
-                    helpfulness_tasks.append(evaluate_helpfulness_single_with_semaphore(prompt, completion))
-
-                # Run all evaluations concurrently
-                ahimsa_results, dharma_results, helpfulness_results = await asyncio.gather(
-                    asyncio.gather(*ahimsa_tasks),
-                    asyncio.gather(*dharma_tasks),
-                    asyncio.gather(*helpfulness_tasks),
-                    return_exceptions=True
-                )
-
-                if VERBOSE_LOGGING:
-                    logger.info(f"[combined_reward_trl DEBUG] Results from single-call approach - Ahimsa: {json.dumps(ahimsa_results, indent=2)}")
-                    logger.info(f"[combined_reward_trl DEBUG] Results from single-call approach - Dharma: {json.dumps(dharma_results, indent=2)}")
-                    logger.info(f"[combined_reward_trl DEBUG] Results from single-call approach - Helpfulness: {json.dumps(helpfulness_results, indent=2)}")
-            else:
-                # Batch approach: multiple prompt+completion pairs per Gemini API call
-                logger.info(f"combined_reward_trl: Using batch-call approach for {len(prompts)} items")
-
-                # Prepare for batch Ahimsa evaluation using the new concurrent processor
-                all_ahimsa_items_for_gemini = []
-                dharma_tasks_gemini = [] # This will be replaced by all_dharma_items_for_gemini
-                all_dharma_items_for_gemini = [] # New: for batch Dharma
-                helpfulness_tasks_gemini = []
-                all_helpfulness_items_for_gemini = [] # New: for batch Helpfulness
-
-                for idx, (prompt, completion) in enumerate(zip(prompts, processed_completions)):
-                    actual_tier = actual_tiers_for_eval[idx]
-                    current_prompt_meta = {"tier": actual_tier}
-                    compound_scope = kwargs.get("scope", [])[idx] if "scope" in kwargs and idx < len(kwargs["scope"]) else None
-                    if compound_scope:
-                        current_prompt_meta["scope"] = compound_scope
-
-                    # For batch Ahimsa
-                    all_ahimsa_items_for_gemini.append({
-                        "prompt": prompt,
-                        "model_response": completion,
-                        "original_prompt_meta": current_prompt_meta
-                    })
-                    # For batch Dharma (New)
-                    all_dharma_items_for_gemini.append({
-                        "prompt": prompt,
-                        "model_response": completion,
-                        "original_prompt_meta": current_prompt_meta # Ensure scope is included here
-                    })
-                    # For batch Helpfulness (New)
-                    all_helpfulness_items_for_gemini.append({
-                        "prompt": prompt,
-                        "model_response": completion,
-                        "original_prompt_meta": {} # Helpfulness doesn't use meta
-                    })
-
-                # Configure concurrency for Ahimsa batch processing
-                items_per_call_ahimsa_cfg = GRPO_CONFIG.get("gemini_ahimsa_items_per_call_combined", GRPO_CONFIG.get("gemini_ahimsa_items_per_call", 10)) # Fallback to general key
-                max_concurrent_ahimsa_cfg = GRPO_CONFIG.get("gemini_ahimsa_max_concurrent_combined", GRPO_CONFIG.get("gemini_ahimsa_max_concurrent", 50))
-
-                # Create a task for the concurrent batch Ahimsa evaluation
-                concurrent_ahimsa_task = batch_process_ahimsa_evaluations_concurrently(
-                    all_ahimsa_items_for_gemini,
-                    items_per_gemini_call=items_per_call_ahimsa_cfg,
-                    max_concurrent_calls=max_concurrent_ahimsa_cfg
-                )
-
-                # Configure concurrency for Dharma batch processing (New)
-                items_per_call_dharma_cfg = GRPO_CONFIG.get("gemini_dharma_items_per_call_combined", GRPO_CONFIG.get("gemini_dharma_items_per_call_trl", 10)) # Fallback
-                max_concurrent_dharma_cfg = GRPO_CONFIG.get("gemini_dharma_max_concurrent_combined", GRPO_CONFIG.get("gemini_dharma_max_concurrent_trl", 50))
-
-                concurrent_dharma_task = batch_process_dharma_evaluations_concurrently(
-                    all_dharma_items_for_gemini,
-                    items_per_gemini_call=items_per_call_dharma_cfg,
-                    max_concurrent_calls=max_concurrent_dharma_cfg
-                )
-
-                # Configure concurrency for Helpfulness batch processing (New)
-                items_per_call_helpfulness_cfg = GRPO_CONFIG.get("gemini_helpfulness_items_per_call_combined", GRPO_CONFIG.get("gemini_helpfulness_items_per_call_trl", 10))
-                max_concurrent_helpfulness_cfg = GRPO_CONFIG.get("gemini_helpfulness_max_concurrent_combined", GRPO_CONFIG.get("gemini_helpfulness_max_concurrent_trl", 50))
-
-                concurrent_helpfulness_task = batch_process_helpfulness_evaluations_concurrently(
-                    all_helpfulness_items_for_gemini,
-                    items_per_gemini_call=items_per_call_helpfulness_cfg,
-                    max_concurrent_calls=max_concurrent_helpfulness_cfg
-                )
-
-                # Gather all Gemini tasks: concurrent Ahimsa batch, concurrent Dharma batch, multiple individual Helpfulness
-                gathered_results = await asyncio.gather(
-                    concurrent_ahimsa_task,
-                    concurrent_dharma_task, # New: added Dharma batch task
-                    concurrent_helpfulness_task, # New: added Helpfulness batch task
-                    return_exceptions=True # Added to handle errors in gather gracefully
-                )
-                ahimsa_results = gathered_results[0] # This is already a flat list of evaluation dicts
-                dharma_results = gathered_results[1] # New: Dharma results from batch
-                helpfulness_results = gathered_results[2]
-
-                if VERBOSE_LOGGING:
-                    logger.info(f"[combined_reward_trl DEBUG] Ahimsa items for Gemini: {json.dumps(all_ahimsa_items_for_gemini, indent=2)}")
-                    logger.info(f"[combined_reward_trl DEBUG] Ahimsa results from concurrent batch: {json.dumps(ahimsa_results, indent=2)}")
-                    logger.info(f"[combined_reward_trl DEBUG] Dharma items for Gemini: {json.dumps(all_dharma_items_for_gemini, indent=2)}") # New log
-                    logger.info(f"[combined_reward_trl DEBUG] Dharma results from concurrent batch: {json.dumps(dharma_results, indent=2)}") # New log
-                    logger.info(f"[combined_reward_trl DEBUG] Helpfulness items for Gemini: {json.dumps(all_helpfulness_items_for_gemini, indent=2)}") # New log
-                    logger.info(f"[combined_reward_trl DEBUG] Helpfulness results from concurrent batch: {json.dumps(helpfulness_results, indent=2)}") # New log
-
-        return ahimsa_results, dharma_results, helpfulness_results
-
-    # Run all evaluations in one go
-    ahimsa_results, dharma_results, helpfulness_results = run_async_safely(run_all_evaluations())
+    logger.info(f"combined_reward_trl: Using unified evaluation for {len(prompts)} items")
+    ahimsa_results, dharma_results, helpfulness_results = run_async_safely(
+        evaluate_all_rewards_concurrently(prompts, completions, **kwargs)
+    )
 
     # Apply weights from config (default to equal)
     weights = REWARD_WEIGHTS

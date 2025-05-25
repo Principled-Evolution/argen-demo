@@ -411,6 +411,7 @@ async def fallback_to_openai(
 def preprocess_json_content(json_content: str) -> str:
     """
     Preprocess JSON content to fix common issues with Gemini responses.
+    Enhanced to handle control characters and other JSON parsing issues.
 
     Args:
         json_content: The JSON content string to preprocess
@@ -418,26 +419,120 @@ def preprocess_json_content(json_content: str) -> str:
     Returns:
         Preprocessed JSON content string
     """
-    # Replace 'yes' with 'true' and 'no' with 'false'
-    json_content = re.sub(r':\s*yes\s*,', ': true,', json_content)
-    json_content = re.sub(r':\s*no\s*,', ': false,', json_content)
-    # Handle the case where yes/no is the last value in an object
-    json_content = re.sub(r':\s*yes\s*\n', ': true\n', json_content)
-    json_content = re.sub(r':\s*no\s*\n', ': false\n', json_content)
-    json_content = re.sub(r':\s*yes\s*\}', ': true}', json_content)
-    json_content = re.sub(r':\s*no\s*\}', ': false}', json_content)
+    import unicodedata
 
+    # Step 1: Remove or replace control characters
+    # Remove ASCII control characters (0x00-0x1F) except tab, newline, carriage return
+    # Also remove DEL character (0x7F) and Unicode control characters
+    cleaned_chars = []
+    for char in json_content:
+        code = ord(char)
+        # Keep printable ASCII, tab, newline, carriage return
+        if (32 <= code <= 126) or char in '\t\n\r':
+            cleaned_chars.append(char)
+        # Replace other control characters with space
+        elif code < 32 or code == 127 or unicodedata.category(char).startswith('C'):
+            cleaned_chars.append(' ')
+        else:
+            # Keep other Unicode characters
+            cleaned_chars.append(char)
+
+    json_content = ''.join(cleaned_chars)
+
+    # Step 2: Normalize whitespace
+    # Replace multiple consecutive whitespace with single space
+    json_content = re.sub(r'\s+', ' ', json_content)
+
+    # Step 3: Fix common boolean value issues
+    # Replace 'yes' with 'true' and 'no' with 'false'
+    json_content = re.sub(r':\s*yes\s*,', ': true,', json_content, flags=re.IGNORECASE)
+    json_content = re.sub(r':\s*no\s*,', ': false,', json_content, flags=re.IGNORECASE)
+    # Handle the case where yes/no is the last value in an object
+    json_content = re.sub(r':\s*yes\s*\n', ': true\n', json_content, flags=re.IGNORECASE)
+    json_content = re.sub(r':\s*no\s*\n', ': false\n', json_content, flags=re.IGNORECASE)
+    json_content = re.sub(r':\s*yes\s*\}', ': true}', json_content, flags=re.IGNORECASE)
+    json_content = re.sub(r':\s*no\s*\}', ': false}', json_content, flags=re.IGNORECASE)
+
+    # Step 4: Fix invalid escape sequences
     # Fix the invalid pipe escape
     json_content = json_content.replace(r'\|', '|')
-
     # Fix invalid underscore escape
     json_content = json_content.replace(r'\_', '_')
+    # Fix other common invalid escapes
+    json_content = json_content.replace(r'\-', '-')
+    json_content = json_content.replace(r'\+', '+')
+    json_content = json_content.replace(r'\=', '=')
+    json_content = json_content.replace(r'\(', '(')
+    json_content = json_content.replace(r'\)', ')')
+    json_content = json_content.replace(r'\[', '[')
+    json_content = json_content.replace(r'\]', ']')
 
-    # Remove trailing commas before closing curly braces or square brackets
+    # Step 5: Remove trailing commas before closing curly braces or square brackets
     # This handles trailing commas in objects and arrays
     json_content = re.sub(r',\s*(\}|\])', r'\1', json_content)
 
+    # Step 6: Fix common quote issues
+    # Replace smart quotes with regular quotes
+    json_content = json_content.replace('"', '"').replace('"', '"')
+    json_content = json_content.replace(''', "'").replace(''', "'")
+
+    # Step 7: Ensure proper JSON structure
+    # Strip leading/trailing whitespace
+    json_content = json_content.strip()
+
     return json_content
+
+
+def detect_control_characters(text: str) -> bool:
+    """
+    Detect if text contains problematic control characters that could cause JSON parsing issues.
+
+    Args:
+        text: The text to check
+
+    Returns:
+        True if control characters are detected, False otherwise
+    """
+    import unicodedata
+
+    for char in text:
+        code = ord(char)
+        # Check for problematic control characters
+        if (code < 32 and char not in '\t\n\r') or code == 127:
+            return True
+        # Check for Unicode control characters
+        if unicodedata.category(char).startswith('C') and char not in '\t\n\r':
+            return True
+    return False
+
+
+def create_control_character_retry_prompt(original_prompt: str, attempt_number: int) -> str:
+    """
+    Create a modified prompt for retry attempts that explicitly asks to avoid control characters.
+
+    Args:
+        original_prompt: The original prompt text
+        attempt_number: Which retry attempt this is (1-based)
+
+    Returns:
+        Modified prompt with control character avoidance instructions
+    """
+    control_char_instruction = (
+        "\n\nIMPORTANT: Your response must contain only standard printable characters. "
+        "Do not include any control characters, special formatting characters, or "
+        "non-printable characters in your JSON response. Use only standard ASCII "
+        "characters (32-126) plus newlines and spaces."
+    )
+
+    if attempt_number > 1:
+        retry_instruction = f"\n\nThis is retry attempt {attempt_number}. "
+        if attempt_number > 2:
+            retry_instruction += "Previous attempts failed due to formatting issues. "
+        retry_instruction += "Please ensure your JSON response is clean and parseable."
+        control_char_instruction = retry_instruction + control_char_instruction
+
+    return original_prompt + control_char_instruction
+
 
 # Gemini model to use for evaluations
 GEMINI_EVAL_MODEL = "gemini-2.0-flash"
