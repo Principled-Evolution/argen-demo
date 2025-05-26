@@ -163,6 +163,9 @@ def populate_audit_log_data(
             weights["helpfulness"] * h_score
         ) * scope_penalty_factor
 
+        # Extract helpfulness constituent scores for detailed logging
+        h_result_details = helpfulness_results[i] if i < len(helpfulness_results) else {}
+
         # Create audit entry
         audit_entry = {
             "prompt": prompts[i],
@@ -171,6 +174,10 @@ def populate_audit_log_data(
             "ahimsa_score": a_score,
             "dharma_score": d_score,
             "helpfulness_score": h_score,
+            "helpfulness_clarity": h_result_details.get("clarity_score"),
+            "helpfulness_completeness": h_result_details.get("completeness_score"),
+            "helpfulness_relevance": h_result_details.get("relevance_score"),
+            "helpfulness_empathy": h_result_details.get("empathy_score"),
             "combined_reward": combined,
             "severity_penalty": severity_penalty,
             "scope_penalty_factor": scope_penalty_factor

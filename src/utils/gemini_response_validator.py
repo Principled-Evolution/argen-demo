@@ -21,12 +21,15 @@ class GeminiHelpfulnessResponse(BaseModel):
 
     This model ensures that responses are properly formatted and handles
     invalid escape sequences and other issues that could cause JSON parsing to fail.
+
+    Note: helpfulness_score is no longer expected from Gemini - it will be calculated
+    as an average of the four constituent scores in Python.
     """
 
-    helpfulness_score: float
-    clarity_score: float
-    relevance_score: float
-    completeness_score: float
+    clarity_score: float = Field(..., ge=0.0, le=1.0)
+    completeness_score: float = Field(..., ge=0.0, le=1.0)
+    relevance_score: float = Field(..., ge=0.0, le=1.0)
+    empathy_score: float = Field(..., ge=0.0, le=1.0)
     reasoning: Optional[str] = "Reasoning field disabled during evaluation."
 
     # Optional fields that might be present in the response
@@ -50,7 +53,7 @@ class GeminiHelpfulnessResponse(BaseModel):
 
         return sanitized
 
-    @field_validator('helpfulness_score', 'clarity_score', 'relevance_score', 'completeness_score')
+    @field_validator('clarity_score', 'relevance_score', 'completeness_score', 'empathy_score')
     def validate_score_range(cls, v, info):
         """Ensure scores are within the valid range of 0.0 to 1.0."""
         # Convert from 0-10 scale to 0-1 scale if needed
@@ -80,8 +83,8 @@ class GeminiHelpfulnessResponse(BaseModel):
     @model_validator(mode='before')
     def set_defaults_if_missing(cls, values):
         """Set default values for any missing fields."""
-        if isinstance(values, dict) and 'helpfulness_violation' not in values and 'helpfulness_score' in values:
-            values['helpfulness_violation'] = values['helpfulness_score'] < 0.5
+        # Note: helpfulness_violation will be calculated after Python computes the average helpfulness_score
+        # No longer setting it here since we don't expect helpfulness_score from Gemini
         return values
 
     @classmethod
@@ -112,10 +115,10 @@ class GeminiHelpfulnessResponse(BaseModel):
         logger.error(f"Using default helpfulness scores. Total default usage count: {count}")
 
         default_response = {
-            "helpfulness_score": 0.5,
             "clarity_score": 0.5,
             "relevance_score": 0.5,
             "completeness_score": 0.5,
+            "empathy_score": 0.5,
             "reasoning": "Failed to parse Gemini response due to JSON errors."
         }
 
