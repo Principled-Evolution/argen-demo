@@ -718,10 +718,11 @@ class CustomWandbLoggingCallback(TrainerCallback):
                      logger.error(f"Failed to log audit table for step {state.global_step} from rank {os.getenv('RANK', 'N/A')}: {e}", exc_info=True)
             # ---
 
-            # Clear audit log data *after* potential logging
-            # This ensures it's ready for the next step's reward calculation
-            if trl_rewards_module._audit_log_data: # Clear only if it wasn't empty
-                trl_rewards_module._audit_log_data.clear()
+            # CRITICAL FIX: Don't clear audit log data here - let reward functions handle clearing
+            # This prevents race conditions where callback clears data before next step's reward functions run
+            # The reward functions will clear and repopulate the data when they execute
+            # This ensures timing independence (KISS principle)
+            logger.info(f"🔍 DEBUG Step {state.global_step}: Leaving audit data intact for timing independence")
             # ---
 
 # --- ADD LinearBetaScheduler for KL Beta Scheduling ---

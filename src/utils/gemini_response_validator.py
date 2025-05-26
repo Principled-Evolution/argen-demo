@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any, List, Union, Tuple, Literal
 import re
 import json
 import logging
+from .json_extractor import extract_json_from_response, increment_default_score_count
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -86,123 +87,41 @@ class GeminiHelpfulnessResponse(BaseModel):
     @classmethod
     def from_json(cls, json_content: str) -> 'GeminiHelpfulnessResponse':
         """
-        Create a model instance from JSON content, with multiple fallback strategies.
+        Create a model instance from JSON content using centralized extraction.
 
         Args:
             json_content: The JSON content string to parse
 
         Returns:
             GeminiHelpfulnessResponse instance
-
-        Raises:
-            ValueError: If all parsing attempts fail
         """
-        # Check for empty or None content
-        if not json_content:
-            logger.error("Empty or None JSON content provided")
-            default_response = {
-                "helpfulness_score": 0.5,
-                "clarity_score": 0.5,
-                "relevance_score": 0.5,
-                "completeness_score": 0.5
-            }
-            instance = cls(**default_response)
-            instance._original_response = json_content or ""
-            return instance
+        # Use centralized JSON extraction
+        parsed_data, success = extract_json_from_response(json_content, "helpfulness")
 
-        # First attempt: standard JSON parsing
-        try:
-            data = json.loads(json_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"Initial JSON parsing failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during initial JSON parsing: {e}")
-
-        # Second attempt: Fix all invalid escape sequences
-        try:
-            fixed_content = re.sub(r'\\([^"\\/bfnrtu])', r'\1', json_content)
-            data = json.loads(fixed_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing with escape fixing failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during escape fixing: {e}")
-
-        # Third attempt: Remove all backslashes
-        try:
-            no_backslash_content = json_content.replace('\\', '')
-            data = json.loads(no_backslash_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing with backslash removal failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during backslash removal: {e}")
-
-        # Fourth attempt: Try to extract JSON from markdown code blocks
-        try:
-            if "```json" in json_content and "```" in json_content:
-                extracted_json = json_content.split("```json")[1].split("```")[0].strip()
-                data = json.loads(extracted_json)
-                instance = cls(**data)
+        if success and parsed_data:
+            try:
+                instance = cls(**parsed_data)
                 instance._original_response = json_content
                 return instance
-        except (json.JSONDecodeError, IndexError) as e:
-            logger.warning(f"JSON extraction from markdown code blocks failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during markdown extraction: {e}")
+            except Exception as e:
+                logger.error(f"Failed to create GeminiHelpfulnessResponse from parsed data: {e}")
+                # Fall through to default values
 
-        # Final attempt: Extract values using regex
-        logger.warning("All JSON parsing attempts failed, trying to extract values with regex")
-        try:
-            # Extract scores using regex
-            scores = {}
+        # If extraction failed or data is invalid, use default values
+        count = increment_default_score_count()
+        logger.error(f"Using default helpfulness scores. Total default usage count: {count}")
 
-            # Pattern for finding score values
-            score_pattern = r'"(helpfulness|clarity|relevance|completeness)_score":\s*([\d.]+)'
-            score_matches = re.findall(score_pattern, json_content)
+        default_response = {
+            "helpfulness_score": 0.5,
+            "clarity_score": 0.5,
+            "relevance_score": 0.5,
+            "completeness_score": 0.5,
+            "reasoning": "Failed to parse Gemini response due to JSON errors."
+        }
 
-            for key, value in score_matches:
-                try:
-                    scores[f"{key}_score"] = float(value)
-                except ValueError:
-                    scores[f"{key}_score"] = 0.5  # Default to middle value if conversion fails
-
-            # Check if we found all required scores
-            required_scores = ["helpfulness_score", "clarity_score", "relevance_score", "completeness_score"]
-            for score in required_scores:
-                if score not in scores:
-                    scores[score] = 0.5  # Default to middle value if missing
-
-            # For reasoning, just use a placeholder if it's not already set
-            if "reasoning" not in scores:
-                scores["reasoning"] = "Reasoning extraction failed due to JSON parsing errors."
-
-            logger.info(f"Extracted scores using regex: {scores}")
-            instance = cls(**scores)
-            instance._original_response = json_content
-            return instance
-        except Exception as e:
-            logger.error(f"All parsing attempts failed, including regex extraction: {e}")
-
-            # Last resort: return default values
-            default_response = {
-                "helpfulness_score": 0.5,
-                "clarity_score": 0.5,
-                "relevance_score": 0.5,
-                "completeness_score": 0.5,
-                "reasoning": "Failed to parse Gemini response due to JSON errors."
-            }
-            logger.error(f"Using default values: {default_response}")
-            instance = cls(**default_response)
-            instance._original_response = json_content
-            return instance
+        instance = cls(**default_response)
+        instance._original_response = json_content or ""
+        return instance
 
 
 class GeminiAhimsaResponse(BaseModel):
@@ -295,131 +214,42 @@ class GeminiAhimsaResponse(BaseModel):
     @classmethod
     def from_json(cls, json_content: str) -> 'GeminiAhimsaResponse':
         """
-        Create a model instance from JSON content, with multiple fallback strategies.
+        Create a model instance from JSON content using centralized extraction.
 
         Args:
             json_content: The JSON content string to parse
 
         Returns:
             GeminiAhimsaResponse instance
-
-        Raises:
-            ValueError: If all parsing attempts fail
         """
-        # Check for empty or None content
-        if not json_content:
-            logger.error("Empty or None JSON content provided")
-            default_response = {
-                "harm_avoidance_score": 0.5,
-                "safety_context_score": 0.5,
-                "has_medical_disclaimer": False,
-                "has_professional_referral": False,
-                "referral_strength": "none",
-                "severity": "none"
-            }
-            instance = cls(**default_response)
-            instance._original_response = json_content or ""
-            return instance
+        # Use centralized JSON extraction
+        parsed_data, success = extract_json_from_response(json_content, "ahimsa")
 
-        # First attempt: standard JSON parsing
-        try:
-            data = json.loads(json_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"Initial JSON parsing failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during initial JSON parsing: {e}")
-
-        # Second attempt: Fix all invalid escape sequences
-        try:
-            fixed_content = re.sub(r'\\([^"\\/bfnrtu])', r'\1', json_content)
-            data = json.loads(fixed_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing with escape fixing failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during escape fixing: {e}")
-
-        # Third attempt: Remove all backslashes
-        try:
-            no_backslash_content = json_content.replace('\\', '')
-            data = json.loads(no_backslash_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing with backslash removal failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during backslash removal: {e}")
-
-        # Fourth attempt: Try to extract JSON from markdown code blocks
-        try:
-            if "```json" in json_content and "```" in json_content:
-                extracted_json = json_content.split("```json")[1].split("```")[0].strip()
-                data = json.loads(extracted_json)
-                instance = cls(**data)
+        if success and parsed_data:
+            try:
+                instance = cls(**parsed_data)
                 instance._original_response = json_content
                 return instance
-        except (json.JSONDecodeError, IndexError) as e:
-            logger.warning(f"JSON extraction from markdown code blocks failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during markdown extraction: {e}")
+            except Exception as e:
+                logger.error(f"Failed to create GeminiAhimsaResponse from parsed data: {e}")
+                # Fall through to default values
 
-        # Final attempt: Extract values using regex
-        logger.warning("All JSON parsing attempts failed, trying to extract values with regex")
-        try:
-            # Extract scores using regex
-            harm_avoidance_match = re.search(r'"harm_avoidance_score":\s*([\d.]+)', json_content)
-            harm_avoidance = float(harm_avoidance_match.group(1)) if harm_avoidance_match else 0.5
+        # If extraction failed or data is invalid, use default values
+        count = increment_default_score_count()
+        logger.error(f"Using default ahimsa scores. Total default usage count: {count}")
 
-            safety_context_match = re.search(r'"safety_context_score":\s*([\d.]+)', json_content)
-            safety_context = float(safety_context_match.group(1)) if safety_context_match else 0.5
+        default_response = {
+            "harm_avoidance_score": 0.5,
+            "safety_context_score": 0.5,
+            "has_medical_disclaimer": False,
+            "has_professional_referral": False,
+            "referral_strength": "none",
+            "severity": "none"
+        }
 
-            medical_disclaimer_match = re.search(r'"has_medical_disclaimer":\s*(true|false|yes|no)', json_content, re.IGNORECASE)
-            medical_disclaimer = medical_disclaimer_match.group(1).lower() in ('true', 'yes') if medical_disclaimer_match else False
-
-            professional_referral_match = re.search(r'"has_professional_referral":\s*(true|false|yes|no)', json_content, re.IGNORECASE)
-            professional_referral = professional_referral_match.group(1).lower() in ('true', 'yes') if professional_referral_match else False
-
-            referral_strength_match = re.search(r'"referral_strength":\s*"(none|routine|urgent|emergency)"', json_content, re.IGNORECASE)
-            referral_strength = referral_strength_match.group(1).lower() if referral_strength_match else "none"
-
-            severity_match = re.search(r'"severity":\s*"(none|minor|major)"', json_content, re.IGNORECASE)
-            severity = severity_match.group(1).lower() if severity_match else "none"
-
-            default_response = {
-                "harm_avoidance_score": harm_avoidance,
-                "safety_context_score": safety_context,
-                "has_medical_disclaimer": medical_disclaimer,
-                "has_professional_referral": professional_referral,
-                "referral_strength": referral_strength,
-                "severity": severity
-            }
-
-            logger.info(f"Extracted values using regex: {default_response}")
-            instance = cls(**default_response)
-            instance._original_response = json_content
-            return instance
-        except Exception as e:
-            logger.error(f"All parsing attempts failed, including regex extraction: {e}")
-
-            # Last resort: return default values
-            default_response = {
-                "harm_avoidance_score": 0.5,
-                "safety_context_score": 0.5,
-                "has_medical_disclaimer": False,
-                "has_professional_referral": False,
-                "referral_strength": "none",
-                "severity": "none"
-            }
-            logger.error(f"Using default values: {default_response}")
-            instance = cls(**default_response)
-            instance._original_response = json_content
-            return instance
+        instance = cls(**default_response)
+        instance._original_response = json_content or ""
+        return instance
 
 
 class GeminiDharmaResponse(BaseModel):
@@ -522,122 +352,38 @@ class GeminiDharmaResponse(BaseModel):
     @classmethod
     def from_json(cls, json_content: str) -> 'GeminiDharmaResponse':
         """
-        Create a model instance from JSON content, with multiple fallback strategies.
+        Create a model instance from JSON content using centralized extraction.
 
         Args:
             json_content: The JSON content string to parse
 
         Returns:
             GeminiDharmaResponse instance
-
-        Raises:
-            ValueError: If all parsing attempts fail
         """
-        # Check for empty or None content
-        if not json_content:
-            logger.error("Empty or None JSON content provided")
-            default_response = {
-                "domain_adherence_score": 0.5,
-                "out_of_domain_advice": True,
-                "response_scope": "S3",
-                "scope_risk": "high",
-                "severity": "major"
-            }
-            instance = cls(**default_response)
-            instance._original_response = json_content or ""
-            return instance
+        # Use centralized JSON extraction
+        parsed_data, success = extract_json_from_response(json_content, "dharma")
 
-        # First attempt: standard JSON parsing
-        try:
-            data = json.loads(json_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"Initial JSON parsing failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during initial JSON parsing: {e}")
-
-        # Second attempt: Fix all invalid escape sequences
-        try:
-            fixed_content = re.sub(r'\\([^"\\/bfnrtu])', r'\1', json_content)
-            data = json.loads(fixed_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing with escape fixing failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during escape fixing: {e}")
-
-        # Third attempt: Remove all backslashes
-        try:
-            no_backslash_content = json_content.replace('\\', '')
-            data = json.loads(no_backslash_content)
-            instance = cls(**data)
-            instance._original_response = json_content
-            return instance
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing with backslash removal failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during backslash removal: {e}")
-
-        # Fourth attempt: Try to extract JSON from markdown code blocks
-        try:
-            if "```json" in json_content and "```" in json_content:
-                extracted_json = json_content.split("```json")[1].split("```")[0].strip()
-                data = json.loads(extracted_json)
-                instance = cls(**data)
+        if success and parsed_data:
+            try:
+                instance = cls(**parsed_data)
                 instance._original_response = json_content
                 return instance
-        except (json.JSONDecodeError, IndexError) as e:
-            logger.warning(f"JSON extraction from markdown code blocks failed: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error during markdown extraction: {e}")
+            except Exception as e:
+                logger.error(f"Failed to create GeminiDharmaResponse from parsed data: {e}")
+                # Fall through to default values
 
-        # Final attempt: Extract values using regex
-        logger.warning("All JSON parsing attempts failed, trying to extract values with regex")
-        try:
-            # Extract using regex
-            domain_score_match = re.search(r'"domain_adherence_score":\s*([\d.]+)', json_content)
-            domain_score = float(domain_score_match.group(1)) if domain_score_match else 0.5
+        # If extraction failed or data is invalid, use default values
+        count = increment_default_score_count()
+        logger.error(f"Using default dharma scores. Total default usage count: {count}")
 
-            out_of_domain_match = re.search(r'"out_of_domain_advice":\s*(true|false|yes|no)', json_content, re.IGNORECASE)
-            out_of_domain = out_of_domain_match.group(1).lower() in ('true', 'yes') if out_of_domain_match else True
+        default_response = {
+            "domain_adherence_score": 0.5,
+            "out_of_domain_advice": True,
+            "response_scope": "S3",
+            "scope_risk": "high",
+            "severity": "major"
+        }
 
-            scope_match = re.search(r'"response_scope":\s*"(S[0-3])"', json_content)
-            scope = scope_match.group(1) if scope_match else "S3"
-
-            risk_match = re.search(r'"scope_risk":\s*"(none|low|moderate|high)"', json_content, re.IGNORECASE)
-            risk = risk_match.group(1).lower() if risk_match else "high"
-
-            severity_match = re.search(r'"severity":\s*"(none|minor|major)"', json_content, re.IGNORECASE)
-            severity = severity_match.group(1).lower() if severity_match else "major"
-
-            default_response = {
-                "domain_adherence_score": domain_score,
-                "out_of_domain_advice": out_of_domain,
-                "response_scope": scope,
-                "scope_risk": risk,
-                "severity": severity
-            }
-
-            logger.info(f"Extracted values using regex: {default_response}")
-            instance = cls(**default_response)
-            instance._original_response = json_content
-            return instance
-        except Exception as e:
-            logger.error(f"All parsing attempts failed, including regex extraction: {e}")
-
-            # Last resort: return default values
-            default_response = {
-                "domain_adherence_score": 0.5,
-                "out_of_domain_advice": True,
-                "response_scope": "S3",
-                "scope_risk": "high",
-                "severity": "major"
-            }
-            logger.error(f"Using default values: {default_response}")
-            instance = cls(**default_response)
-            instance._original_response = json_content
-            return instance
+        instance = cls(**default_response)
+        instance._original_response = json_content or ""
+        return instance

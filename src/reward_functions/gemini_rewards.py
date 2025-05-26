@@ -284,19 +284,11 @@ async def fix_missing_keys_with_gemini(
 
             if content:
                 try:
-                    # Extract JSON from the response
-                    if "```json" in content and "```" in content:
-                        json_content = content.split("```json")[1].split("```")[0].strip()
-                    elif "```" in content:
-                        json_content = content.split("```")[1].split("```")[0].strip()
-                    else:
-                        json_content = content
+                    # Use centralized JSON extraction
+                    from src.utils.json_extractor import extract_json_from_response
+                    fixed_result, extraction_success = extract_json_from_response(content, f"{evaluation_type}_fix")
 
-                    # Preprocess JSON content
-                    json_content = preprocess_json_content(json_content)
-
-                    try:
-                        fixed_result = json.loads(json_content)
+                    if extraction_success and fixed_result:
                         if VERBOSE_LOGGING:
                             logger.info(f"Successfully fixed missing keys in {evaluation_type} evaluation (attempt {attempt + 1}).")
 
@@ -307,8 +299,8 @@ async def fix_missing_keys_with_gemini(
                         else:
                             still_missing = [key for key in required_keys if key not in fixed_result]
                             logger.warning(f"Fix attempt {attempt + 1} still missing keys: {still_missing}")
-                    except json.JSONDecodeError as json_err:
-                        logger.error(f"Fix attempt {attempt + 1}: Failed to decode JSON: {json_err}\nContent: {content}")
+                    else:
+                        logger.error(f"Fix attempt {attempt + 1}: Failed to extract JSON from content")
                 except Exception as e:
                     logger.error(f"Fix attempt {attempt + 1}: Error processing content: {e}")
             else:
@@ -808,6 +800,13 @@ def log_error_handling_stats():
     logger.info("=== Gemini Evaluation Error Handling Statistics ===")
     logger.info(f"Total API calls: {GEMINI_TOTAL_CALLS}")
     logger.info(f"Total errors: {GEMINI_ERROR_COUNT} ({error_rate:.2%})")
+
+    # Get default score count
+    from src.utils.json_extractor import get_default_score_count
+    default_score_count = get_default_score_count()
+    default_score_rate = default_score_count / total_calls if total_calls > 0 else 0
+    logger.info(f"Default score usage: {default_score_count} ({default_score_rate:.2%} of total calls)")
+
     logger.info(f"Missing keys occurrences: {GEMINI_MISSING_KEYS_COUNT} ({missing_keys_rate:.2%} of total calls)")
     logger.info(f"Successfully fixed missing keys: {GEMINI_MISSING_KEYS_FIXED_COUNT} ({fix_success_rate:.2%} of missing keys)")
     logger.info(f"OpenAI fallbacks: {GEMINI_OPENAI_FALLBACK_COUNT} ({fallback_rate:.2%} of total calls)")

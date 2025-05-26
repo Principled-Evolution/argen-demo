@@ -712,40 +712,20 @@ Please provide your evaluation in the specified JSON format.
                 if detect_control_characters(content):
                     logger.warning(f"Gemini Ahimsa attempt {attempt + 1}: Control characters detected in response, will sanitize")
 
-                # Extract JSON from the response
-                json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-                if json_match:
-                    json_content = json_match.group(1)
-                else:
-                    json_match = re.search(r'{.*}', content, re.DOTALL)
-                    if json_match:
-                        json_content = json_match.group(0)
+                # Use centralized JSON extraction
+                from src.utils.json_extractor import extract_json_from_response
+                evaluation_result, extraction_success = extract_json_from_response(content, "ahimsa")
+
+                if not extraction_success or evaluation_result is None:
+                    logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Failed to extract JSON from response")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                        continue
                     else:
-                        logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Failed to extract JSON from response: {content[:500]}...")
-                        if attempt < max_retries - 1:
-                            await asyncio.sleep(retry_delay)
-                            continue
-                        else:
-                            track_gemini_error()
-                            raise GeminiErrorRateExceeded(f"Failed to extract JSON from Gemini response after {max_retries} attempts")
+                        track_gemini_error()
+                        raise GeminiErrorRateExceeded(f"Failed to extract JSON from Gemini response after {max_retries} attempts")
 
-                # Preprocess the JSON content to fix common issues including control characters
-                json_content = preprocess_json_content(json_content)
 
-                # Parse the JSON
-                evaluation_result = json.loads(json_content)
-
-            except json.JSONDecodeError as json_err:
-                error_msg = f"Gemini Ahimsa attempt {attempt + 1}: JSON decode error: {json_err}"
-                if "control character" in str(json_err).lower():
-                    error_msg += " (Control character detected)"
-                logger.error(error_msg)
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay)
-                    continue
-                else:
-                    track_gemini_error()
-                    raise GeminiErrorRateExceeded(f"Failed to parse JSON after {max_retries} attempts: {json_err}") from json_err
             except Exception as e:
                 logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Error processing response: {e}")
                 if attempt < max_retries - 1:

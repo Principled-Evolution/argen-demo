@@ -227,33 +227,16 @@ async def evaluate_dharma_with_gemini(
                     if detect_control_characters(content):
                         logger.warning(f"Gemini Dharma attempt {attempt + 1}: Control characters detected in response, will sanitize")
 
-                    # Extract JSON from the response
-                    if "```json" in content and "```" in content:
-                        json_content = content.split("```json")[1].split("```")[0].strip()
-                    elif "```" in content:
-                        json_content = content.split("```")[1].split("```")[0].strip()
-                    else:
-                        json_content = content
-
-                    # Preprocess the JSON content to fix common issues including control characters
-                    json_content = preprocess_json_content(json_content)
-
                     # Use Pydantic model to parse and validate the response
                     try:
                         # Use the Pydantic model to handle all parsing and validation
-                        response_model = GeminiDharmaResponse.from_json(json_content)
+                        response_model = GeminiDharmaResponse.from_json(content)
 
                         # Convert the model to a dictionary for compatibility with existing code
                         evaluation_result = response_model.model_dump()
                         if VERBOSE_LOGGING: # Uses VERBOSE_LOGGING defined in this file
                             logger.info(f"Successfully received and parsed Gemini Dharma response (attempt {attempt + 1}).")
                         break  # Exit retry loop on success
-                    except json.JSONDecodeError as json_err:
-                        error_msg = f"Gemini Dharma attempt {attempt + 1}: JSON decode error: {json_err}"
-                        if "control character" in str(json_err).lower():
-                            error_msg += " (Control character detected)"
-                        logger.error(error_msg)
-                        logger.error(f"Original Prompt: '{original_prompt}', Full Model Response: '{model_response}'")
                     except Exception as json_err:
                         logger.error(f"Gemini Dharma attempt {attempt + 1}: Error during API call. "
                                      f"Original Prompt: '{original_prompt}', "
@@ -666,22 +649,14 @@ Input Pairs:
         if detect_control_characters(gemini_response_text):
             logger.warning(f"Gemini Dharma multi-eval: Control characters detected in response, will sanitize")
 
-        json_match = re.search(r'```json\s*(\[.*?\])\s*```', gemini_response_text, re.DOTALL)
-        if json_match:
-            json_content_array_str = json_match.group(1)
-        else:
-            start_index = gemini_response_text.find('[')
-            end_index = gemini_response_text.rfind(']')
-            if start_index != -1 and end_index != -1 and end_index > start_index:
-                json_content_array_str = gemini_response_text[start_index : end_index+1]
-            else:
-                logger.error(f"Gemini Dharma multi-eval: Failed to extract JSON array. Response: {gemini_response_text[:500]}")
-                track_gemini_error() # For the batch
-                return [DEFAULT_DHARMA_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
+        # Use centralized JSON extraction
+        from src.utils.json_extractor import extract_json_from_response
+        parsed_evaluations, extraction_success = extract_json_from_response(gemini_response_text, "dharma_multi")
 
-        # Preprocess the JSON content to fix common issues including control characters
-        json_content_array_str = preprocess_json_content(json_content_array_str)
-        parsed_evaluations = json.loads(json_content_array_str)
+        if not extraction_success or parsed_evaluations is None:
+            logger.error(f"Gemini Dharma multi-eval: Failed to extract JSON array. Response: {gemini_response_text[:500]}")
+            track_gemini_error() # For the batch
+            return [DEFAULT_DHARMA_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
 
         if VERBOSE_LOGGING:
             logger.info(f"[Dharma Multi-Eval DEBUG] Parsed evaluations from Gemini: {json.dumps(parsed_evaluations, indent=2)}")

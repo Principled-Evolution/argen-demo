@@ -91,6 +91,17 @@ class SharedEvaluationCoordinator:
         # Check if we already have results for this batch and reward type
         if batch_id in self._evaluation_results and reward_type in self._evaluation_results[batch_id]:
             logger.info(f"SharedEvaluationCoordinator: Returning cached results for {reward_type} (batch {batch_id})")
+
+            # CRITICAL FIX: Always populate audit data on EVERY call, regardless of caching
+            # This ensures timing independence and consistency (KISS principle)
+            # Use a flag to ensure we only populate once per batch to avoid overwriting
+            if not hasattr(self, '_audit_populated_batches'):
+                self._audit_populated_batches = set()
+
+            if batch_id not in self._audit_populated_batches:
+                self._populate_audit_data_if_needed(batch_id, prompts, completions, **kwargs)
+                self._audit_populated_batches.add(batch_id)
+
             return self._evaluation_results[batch_id][reward_type]
 
         # If this is the first call for this batch, trigger evaluation
@@ -197,11 +208,76 @@ class SharedEvaluationCoordinator:
                 "helpfulness": helpfulness_results
             }
 
+            # Populate audit data after successful evaluation
+            self._populate_audit_data_if_needed(batch_id, prompts, completions, **kwargs)
+
+            # Mark this batch as having audit data populated
+            if not hasattr(self, '_audit_populated_batches'):
+                self._audit_populated_batches = set()
+            self._audit_populated_batches.add(batch_id)
+
             logger.info(f"SharedEvaluationCoordinator: Concurrent evaluation completed for batch {batch_id}")
 
         except Exception as e:
             logger.error(f"SharedEvaluationCoordinator: Error in concurrent evaluation: {e}")
             raise
+
+    def _populate_audit_data_if_needed(
+        self,
+        batch_id: str,
+        prompts: List[str],
+        completions: List[Union[str, List[Dict]]],
+        **kwargs
+    ) -> None:
+        """
+        Populate audit log data for callback logging.
+
+        This method ensures that audit data is populated on EVERY reward function call,
+        regardless of caching, ensuring timing independence (KISS principle).
+        """
+        try:
+            # Only populate if we have evaluation results for this batch
+            if batch_id not in self._evaluation_results:
+                return
+
+            from src.reward_functions.trl_rewards import populate_audit_log_data
+            from src.reward_functions.chat_response_helper import process_completions
+
+            # Get the cached results
+            results = self._evaluation_results[batch_id]
+            ahimsa_results = results["ahimsa"]
+            dharma_results = results["dharma"]
+            helpfulness_results = results["helpfulness"]
+
+            # Process completions to match the format expected by populate_audit_log_data
+            processed_completions = process_completions(completions)
+
+            # Extract compound tiers from kwargs
+            compound_tiers = kwargs.get("tier", [])
+            if not compound_tiers:
+                # Fallback to empty strings if no tiers provided
+                compound_tiers = [""] * len(prompts)
+
+            # Ensure we have the right number of tiers
+            if len(compound_tiers) < len(prompts):
+                compound_tiers.extend([""] * (len(prompts) - len(compound_tiers)))
+
+            logger.info(f"SharedEvaluationCoordinator: Populating audit log data for {len(prompts)} items (batch {batch_id})")
+            populate_audit_log_data(
+                prompts=prompts,
+                processed_completions=processed_completions,
+                compound_tiers=compound_tiers,
+                ahimsa_results=ahimsa_results,
+                dharma_results=dharma_results,
+                helpfulness_results=helpfulness_results,
+                **kwargs
+            )
+            logger.info("SharedEvaluationCoordinator: Successfully populated audit log data")
+
+        except Exception as e:
+            logger.error(f"SharedEvaluationCoordinator: Failed to populate audit log data: {e}")
+            # Don't fail the entire evaluation if audit data population fails
+            pass
 
     def cleanup_batch(self, batch_id: str) -> None:
         """

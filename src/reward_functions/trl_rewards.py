@@ -63,12 +63,127 @@ from src.utils.data_integrity import (
 # Import configurations
 from src.config import GRPO_CONFIG, REWARD_WEIGHTS
 
-# Module-level list to store data for the audit table
-# This list will be populated by combined_reward_trl and read/cleared by the callback
+# Module-level storage for audit data with step-based tracking
+# This prevents race conditions between reward function execution and callback reading
 _audit_log_data = []
+_audit_log_data_step = None  # Track which step the current audit data belongs to
+_audit_log_data_by_step = {}  # Store audit data by step number for timing independence
 
 # Configuration for the check (can be moved to a config file)
 VERIFY_HASH_SAMPLE_RATE = 0.1 # Check 10% of items per batch
+
+def populate_audit_log_data(
+    prompts: List[str],
+    processed_completions: List[str],
+    compound_tiers: List[str],
+    ahimsa_results: List[Dict],
+    dharma_results: List[Dict],
+    helpfulness_results: List[Dict],
+    **kwargs
+) -> None:
+    """
+    Populate _audit_log_data with evaluation results for callback logging.
+
+    This function extracts the audit data population logic from combined_reward_trl
+    so it can be reused by SharedEvaluationCoordinator in separate rewards mode.
+
+    Args:
+        prompts: List of user prompts
+        processed_completions: List of processed completions
+        compound_tiers: List of compound tier values
+        ahimsa_results: List of Ahimsa evaluation results
+        dharma_results: List of Dharma evaluation results
+        helpfulness_results: List of Helpfulness evaluation results
+        **kwargs: Additional arguments (scope, etc.)
+    """
+    global _audit_log_data
+
+    # Only main process should modify shared state
+    if os.getenv("RANK", "0") != "0":
+        return
+
+    # CRITICAL FIX: Don't clear existing data here - let the callback handle clearing
+    # This prevents race conditions where we clear data before the callback reads it
+    # The callback will clear the data after it processes it
+
+    # If we already have data for this exact batch, don't duplicate it
+    if _audit_log_data and len(_audit_log_data) == len(prompts):
+        # Check if this looks like the same batch (same number of items)
+        logger.info(f"🔍 DEBUG: Skipping audit data population - already have {len(_audit_log_data)} entries for {len(prompts)} prompts")
+        return
+
+    # Clear only if we're starting fresh or have mismatched data
+    if _audit_log_data:
+        logger.info(f"🔍 DEBUG: Clearing {len(_audit_log_data)} existing audit entries to populate new batch")
+    _audit_log_data.clear()
+
+    # Apply weights from config (default to equal)
+    weights = REWARD_WEIGHTS
+
+    # Check if severity penalty should be applied during training
+    apply_severity_penalty_in_training = GRPO_CONFIG.get("apply_training_severity_penalty", False)
+
+    logger.info(f"🔍 DEBUG: populate_audit_log_data called with {len(prompts)} items")
+    logger.info(f"🔍 DEBUG: _audit_log_data id = {id(_audit_log_data)}, cleared length = {len(_audit_log_data)}")
+
+    for i in range(len(prompts)):
+        # Extract scores from results
+        a_score = ahimsa_results[i].get("ahimsa_score", 0.0)
+        d_score = dharma_results[i].get("dharma_score", 0.0)
+        h_score = helpfulness_results[i].get("helpfulness_score", 0.0)
+
+        # Calculate severity penalty (same logic as combined_reward_trl)
+        severity_penalty = 0.0
+        scope_penalty_factor = 1.0
+
+        if apply_severity_penalty_in_training:
+            # Extract scope from kwargs if available
+            compound_scopes = kwargs.get("scope", [])
+            if i < len(compound_scopes):
+                compound_scope = compound_scopes[i]
+                if compound_scope:
+                    # Extract scope value from compound format if needed
+                    scope_value = extract_tier_from_compound(compound_scope) if ":" in str(compound_scope) else str(compound_scope)
+
+                    # Apply scope-based penalty
+                    if scope_value == "S0":
+                        scope_penalty_factor = 0.5  # 50% penalty for S0 (most severe)
+                    elif scope_value == "S1":
+                        scope_penalty_factor = 0.75  # 25% penalty for S1
+                    elif scope_value == "S2":
+                        scope_penalty_factor = 0.9   # 10% penalty for S2
+                    # S3 gets no penalty (factor = 1.0)
+
+                    severity_penalty = 1.0 - scope_penalty_factor
+
+        # Calculate combined reward with weights and penalties
+        combined = (
+            weights["ahimsa"] * a_score +
+            weights["dharma"] * d_score +
+            weights["helpfulness"] * h_score
+        ) * scope_penalty_factor
+
+        # Create audit entry
+        audit_entry = {
+            "prompt": prompts[i],
+            "completion": processed_completions[i],
+            "tier_raw": compound_tiers[i],
+            "ahimsa_score": a_score,
+            "dharma_score": d_score,
+            "helpfulness_score": h_score,
+            "combined_reward": combined,
+            "severity_penalty": severity_penalty,
+            "scope_penalty_factor": scope_penalty_factor
+        }
+        _audit_log_data.append(audit_entry)
+
+        # DEBUG: Log first entry
+        if i == 0:
+            logger.info(f"🔍 DEBUG: First audit entry appended: {audit_entry}")
+            logger.info(f"🔍 DEBUG: _audit_log_data length after first append = {len(_audit_log_data)}")
+
+    logger.info(f"🔍 DEBUG: populate_audit_log_data completed. Final _audit_log_data length = {len(_audit_log_data)}")
+    logger.info(f"🔍 DEBUG: Final _audit_log_data id = {id(_audit_log_data)}")
 
 def configure_gemini_reasoning(include_reasoning: bool):
     """
@@ -724,18 +839,9 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
     # batch_penalties = []
     # batch_combined_rewards = []
 
-    # Clear the audit log data before processing the new batch
-    # This is now done by the callback *after* it reads the data
-    global _audit_log_data
-
     # CRITICAL DEBUG: Log reward function execution
     logger.info(f"🔍 DEBUG: combined_reward_trl called with {len(prompts)} prompts, {len(completions)} completions")
     logger.info(f"🔍 DEBUG: _audit_log_data id = {id(_audit_log_data)}, current length = {len(_audit_log_data)}")
-
-    # Ensure _audit_log_data exists for this batch - callback will clear later
-    if os.getenv("RANK", "0") == "0": # Only main process should modify shared state
-        _audit_log_data = []
-        logger.info(f"🔍 DEBUG: _audit_log_data cleared by main process, new length = {len(_audit_log_data)}")
 
     for i, (a_result, d_result, h_result) in enumerate(zip(ahimsa_results, dharma_results, helpfulness_results)):
         a_score = a_result.get("ahimsa_score", 0.0)
@@ -796,32 +902,21 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
         # batch_ahimsa_scores.append(a_score)
         # ...
 
-        # --- Collect data for audit table AND average calculation in callback ---
-        # Only main process appends to shared state
-        if os.getenv("RANK", "0") == "0":
-            audit_entry = {
-                "prompt": prompts[i],
-                "completion": processed_completions[i],
-                "tier_raw": compound_tiers[i], # Log the raw compound tier
-                "ahimsa_score": a_score,
-                "dharma_score": d_score,
-                "helpfulness_score": h_score,
-                "combined_reward": combined,
-                "severity_penalty": severity_penalty, # Store severity penalty
-                "scope_penalty_factor": scope_penalty_factor # Store scope penalty factor
-            }
-            _audit_log_data.append(audit_entry)
-
-            # DEBUG: Log first entry
-            if i == 0:
-                logger.info(f"🔍 DEBUG: First audit entry appended: {audit_entry}")
-                logger.info(f"🔍 DEBUG: _audit_log_data length after first append = {len(_audit_log_data)}")
-        # ---
-
     # REMOVED: Logging is moved to the callback
     # if wandb.run: # Check if wandb is active
     #    ...
     #    _wandb_log_safe(log_data)
+
+    # Populate audit log data using the extracted helper function
+    populate_audit_log_data(
+        prompts=prompts,
+        processed_completions=processed_completions,
+        compound_tiers=compound_tiers,
+        ahimsa_results=ahimsa_results,
+        dharma_results=dharma_results,
+        helpfulness_results=helpfulness_results,
+        **kwargs
+    )
 
     if VERBOSE_LOGGING and evaluator == "gemini":
         logger.info(f"[combined_reward_trl DEBUG] Final combined rewards: {rewards}")

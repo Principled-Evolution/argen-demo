@@ -81,19 +81,40 @@ def extract_training_metrics(line: str) -> Optional[Dict[str, float]]:
 
     # Look for the main training metrics dictionary
     if "{'loss':" in line or "'loss':" in line:
-        # Common patterns for metrics
+        # Comprehensive patterns for all metrics
         patterns = {
-            'loss': r"'loss': ([\d.]+)",
+            'loss': r"'loss': ([\d.e-]+)",
             'learning_rate': r"'learning_rate': ([\d.e-]+)",
-            'grad_norm': r"'grad_norm': ([\d.]+)",
-            'reward': r"'reward': ([\d.]+)",
-            'reward_std': r"'reward_std': ([\d.]+)",
+            'grad_norm': r"'grad_norm': ([\d.e-]+)",
+            'reward': r"'reward': ([\d.e-]+)",
+            'reward_std': r"'reward_std': ([\d.e-]+)",
             'kl': r"'kl': ([\d.e-]+)",
-            'epoch': r"'epoch': ([\d.]+)",
-            'num_tokens': r"'num_tokens': ([\d.]+)",
-            'completions/mean_length': r"'completions/mean_length': ([\d.]+)",
-            'rewards/combined_reward_trl/mean': r"'rewards/combined_reward_trl/mean': ([\d.]+)",
-            'rewards/combined_reward_trl/std': r"'rewards/combined_reward_trl/std': ([\d.]+)"
+            'epoch': r"'epoch': ([\d.e-]+)",
+            'num_tokens': r"'num_tokens': ([\d.e-]+)",
+            'completions/mean_length': r"'completions/mean_length': ([\d.e-]+)",
+            'completions/min_length': r"'completions/min_length': ([\d.e-]+)",
+            'completions/max_length': r"'completions/max_length': ([\d.e-]+)",
+            'completions/clipped_ratio': r"'completions/clipped_ratio': ([\d.e-]+)",
+            # Individual reward function metrics
+            'rewards/ahimsa_reward_trl/mean': r"'rewards/ahimsa_reward_trl/mean': ([\d.e-]+)",
+            'rewards/ahimsa_reward_trl/std': r"'rewards/ahimsa_reward_trl/std': ([\d.e-]+)",
+            'rewards/dharma_reward_trl/mean': r"'rewards/dharma_reward_trl/mean': ([\d.e-]+)",
+            'rewards/dharma_reward_trl/std': r"'rewards/dharma_reward_trl/std': ([\d.e-]+)",
+            'rewards/helpfulness_reward_trl/mean': r"'rewards/helpfulness_reward_trl/mean': ([\d.e-]+)",
+            'rewards/helpfulness_reward_trl/std': r"'rewards/helpfulness_reward_trl/std': ([\d.e-]+)",
+            'rewards/combined_reward_trl/mean': r"'rewards/combined_reward_trl/mean': ([\d.e-]+)",
+            'rewards/combined_reward_trl/std': r"'rewards/combined_reward_trl/std': ([\d.e-]+)",
+            # EMA metrics if present
+            'rewards/avg_ahimsa': r"'rewards/avg_ahimsa': ([\d.e-]+)",
+            'rewards/avg_dharma': r"'rewards/avg_dharma': ([\d.e-]+)",
+            'rewards/avg_helpfulness': r"'rewards/avg_helpfulness': ([\d.e-]+)",
+            'rewards/std_ahimsa': r"'rewards/std_ahimsa': ([\d.e-]+)",
+            'rewards/std_dharma': r"'rewards/std_dharma': ([\d.e-]+)",
+            'rewards/std_helpfulness': r"'rewards/std_helpfulness': ([\d.e-]+)",
+            # Clipping ratios
+            'clip_ratio/low_mean': r"'clip_ratio/low_mean': ([\d.e-]+)",
+            'clip_ratio/high_mean': r"'clip_ratio/high_mean': ([\d.e-]+)",
+            'clip_ratio/region_mean': r"'clip_ratio/region_mean': ([\d.e-]+)"
         }
 
         for metric, pattern in patterns.items():
@@ -105,6 +126,20 @@ def extract_training_metrics(line: str) -> Optional[Dict[str, float]]:
                     pass
 
     return metrics if metrics else None
+
+def extract_step_number(line: str) -> Optional[int]:
+    """Extract the actual training step number from various line formats."""
+    # Try to extract from DEBUG Step messages
+    debug_match = re.search(r'DEBUG Step (\d+):', line)
+    if debug_match:
+        return int(debug_match.group(1))
+
+    # Try to extract from progress bar format: "  X%|...| step/total [time<time, rate]"
+    progress_match = re.search(r'\| (\d+)/\d+ \[', line)
+    if progress_match:
+        return int(progress_match.group(1))
+
+    return None
 
 def should_keep_line(parsed_line: Dict[str, Any], line_idx: int, total_lines: int,
                     last_progress_pct: int, last_reward_sample: int) -> tuple[bool, int, int]:
@@ -154,9 +189,9 @@ def create_metrics_trend_summary(metrics_history: List[Dict]) -> str:
 
     summary = []
     summary.append("TRAINING METRICS PROGRESSION:")
-    summary.append("=" * 60)
-    summary.append(f"{'Step':<8} {'Time':<12} {'Loss':<8} {'LR':<10} {'Reward':<8} {'Epoch':<6}")
-    summary.append("-" * 60)
+    summary.append("=" * 120)
+    summary.append(f"{'Step':<8} {'Time':<12} {'Loss':<8} {'LR':<12} {'Reward':<8} {'Ahimsa':<8} {'Dharma':<8} {'Help':<8} {'Epoch':<6}")
+    summary.append("-" * 120)
 
     # Sample key points from the metrics history
     sample_indices = []
@@ -174,35 +209,62 @@ def create_metrics_trend_summary(metrics_history: List[Dict]) -> str:
         entry = metrics_history[idx]
         metrics = entry['metrics']
 
-        step = entry['line']
+        # Use actual step number if available, otherwise use line number
+        step = entry.get('step', entry['line'])
         time_str = entry['timestamp'][:12] if entry['timestamp'] else "N/A"
         loss = f"{metrics.get('loss', 0):.4f}" if 'loss' in metrics else "N/A"
-        lr = f"{metrics.get('learning_rate', 0):.2e}" if 'learning_rate' in metrics else "N/A"
+
+        # Better learning rate formatting
+        lr_val = metrics.get('learning_rate', 0)
+        if lr_val == 0:
+            lr = "N/A"
+        elif lr_val >= 1e-3:
+            lr = f"{lr_val:.6f}"
+        else:
+            lr = f"{lr_val:.2e}"
+
         reward = f"{metrics.get('reward', 0):.3f}" if 'reward' in metrics else "N/A"
+        ahimsa = f"{metrics.get('rewards/ahimsa_reward_trl/mean', 0):.3f}" if 'rewards/ahimsa_reward_trl/mean' in metrics else "N/A"
+        dharma = f"{metrics.get('rewards/dharma_reward_trl/mean', 0):.3f}" if 'rewards/dharma_reward_trl/mean' in metrics else "N/A"
+        helpfulness = f"{metrics.get('rewards/helpfulness_reward_trl/mean', 0):.3f}" if 'rewards/helpfulness_reward_trl/mean' in metrics else "N/A"
         epoch = f"{metrics.get('epoch', 0):.2f}" if 'epoch' in metrics else "N/A"
 
-        summary.append(f"{step:<8} {time_str:<12} {loss:<8} {lr:<10} {reward:<8} {epoch:<6}")
+        summary.append(f"{step:<8} {time_str:<12} {loss:<8} {lr:<12} {reward:<8} {ahimsa:<8} {dharma:<8} {helpfulness:<8} {epoch:<6}")
 
-    summary.append("-" * 60)
+    summary.append("-" * 120)
     summary.append("")
 
-    # Add trend analysis
+    # Add comprehensive trend analysis
     if len(metrics_history) >= 2:
         first_metrics = metrics_history[0]['metrics']
         last_metrics = metrics_history[-1]['metrics']
 
         summary.append("TREND ANALYSIS:")
-        summary.append("-" * 30)
+        summary.append("-" * 50)
 
-        for metric in ['loss', 'reward', 'learning_rate']:
-            if metric in first_metrics and metric in last_metrics:
-                start_val = first_metrics[metric]
-                end_val = last_metrics[metric]
+        # Core metrics
+        trend_metrics = [
+            ('loss', 'Loss', '.4f'),
+            ('reward', 'Combined Reward', '.3f'),
+            ('learning_rate', 'Learning Rate', '.2e'),
+            ('rewards/ahimsa_reward_trl/mean', 'Ahimsa Mean', '.3f'),
+            ('rewards/dharma_reward_trl/mean', 'Dharma Mean', '.3f'),
+            ('rewards/helpfulness_reward_trl/mean', 'Helpfulness Mean', '.3f'),
+            ('kl', 'KL Divergence', '.4f'),
+            ('grad_norm', 'Gradient Norm', '.4f')
+        ]
+
+        for metric_key, metric_name, fmt in trend_metrics:
+            if metric_key in first_metrics and metric_key in last_metrics:
+                start_val = first_metrics[metric_key]
+                end_val = last_metrics[metric_key]
                 change = end_val - start_val
                 change_pct = (change / start_val * 100) if start_val != 0 else 0
 
                 direction = "↑" if change > 0 else "↓" if change < 0 else "→"
-                summary.append(f"{metric.capitalize()}: {start_val:.4f} → {end_val:.4f} ({direction} {change_pct:+.1f}%)")
+                start_str = f"{start_val:{fmt}}"
+                end_str = f"{end_val:{fmt}}"
+                summary.append(f"{metric_name}: {start_str} → {end_str} ({direction} {change_pct:+.1f}%)")
 
         summary.append("")
 
@@ -224,6 +286,8 @@ def condense_log(input_file: Path, output_file: Path) -> None:
     last_reward_sample = -1
 
     print("Processing lines...")
+    last_step_number = None
+
     for i, line in enumerate(lines):
         if i % 10000 == 0:
             print(f"  Processed {i:,}/{total_lines:,} lines ({i/total_lines:.1%})")
@@ -231,14 +295,23 @@ def condense_log(input_file: Path, output_file: Path) -> None:
         parsed = parse_log_line(line)
         parsed['line_number'] = i + 1
 
+        # Extract step number from the line and remember it
+        step_number = extract_step_number(line)
+        if step_number is not None:
+            last_step_number = step_number
+
         # Extract and track training metrics
         metrics = extract_training_metrics(line)
         if metrics:
-            metrics_history.append({
+            entry = {
                 'line': i + 1,
                 'timestamp': parsed['timestamp'],
                 'metrics': metrics
-            })
+            }
+            # Use the most recent step number we found
+            if last_step_number is not None:
+                entry['step'] = last_step_number
+            metrics_history.append(entry)
 
         # Decide whether to keep this line
         keep, last_progress_pct, last_reward_sample = should_keep_line(

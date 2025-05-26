@@ -53,10 +53,9 @@ OPENAI_EVAL_MAX_TOKENS = 1024
 
 # Reward function weights (for combined scores)
 REWARD_WEIGHTS = {
-    #from 'routine' weights in gopal policy suite
-    "ahimsa":      0.25,
-    "dharma":      0.35,
-    "helpfulness": 0.40
+    "ahimsa":      0.3,
+    "dharma":      0.4,
+    "helpfulness": 0.3
 }
 
 # Penalty configuration for evaluations

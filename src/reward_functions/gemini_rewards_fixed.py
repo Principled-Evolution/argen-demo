@@ -221,27 +221,15 @@ Please provide your evaluation in the specified JSON format.
             content = await run_in_thread(make_gemini_call)
 
             if content:
-                try:
-                    # Extract JSON from the response
-                    # Sometimes Gemini might wrap the JSON in markdown code blocks
-                    if "```json" in content and "```" in content:
-                        json_content = content.split("```json")[1].split("```")[0].strip()
-                    elif "```" in content:
-                        json_content = content.split("```")[1].split("```")[0].strip()
-                    else:
-                        json_content = content
+                # Use centralized JSON extraction
+                from src.utils.json_extractor import extract_json_from_response
+                evaluation_result, extraction_success = extract_json_from_response(content, "ahimsa")
 
-                    # Preprocess JSON content to fix common issues
-                    json_content = preprocess_json_content(json_content)
-
-                    try:
-                        evaluation_result = json.loads(json_content)
-                        logger.info(f"Successfully received and parsed Gemini Ahimsa response (attempt {attempt + 1}).")
-                        break  # Exit retry loop on success
-                    except json.JSONDecodeError as json_err:
-                        logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Failed to decode JSON: {json_err}\nContent: {content}")
-                except json.JSONDecodeError as json_err:
-                    logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Failed to decode JSON: {json_err}\nContent: {content}")
+                if extraction_success and evaluation_result:
+                    logger.info(f"Successfully received and parsed Gemini Ahimsa response (attempt {attempt + 1}).")
+                    break  # Exit retry loop on success
+                else:
+                    logger.error(f"Gemini Ahimsa attempt {attempt + 1}: Failed to extract JSON from response")
             else:
                 logger.warning(f"Gemini Ahimsa attempt {attempt + 1}: Received empty content.")
 
@@ -451,27 +439,15 @@ async def evaluate_dharma_with_gemini(
             content = await run_in_thread(make_gemini_call)
 
             if content:
-                try:
-                    # Extract JSON from the response
-                    # Sometimes Gemini might wrap the JSON in markdown code blocks
-                    if "```json" in content and "```" in content:
-                        json_content = content.split("```json")[1].split("```")[0].strip()
-                    elif "```" in content:
-                        json_content = content.split("```")[1].split("```")[0].strip()
-                    else:
-                        json_content = content
+                # Use centralized JSON extraction
+                from src.utils.json_extractor import extract_json_from_response
+                evaluation_result, extraction_success = extract_json_from_response(content, "dharma")
 
-                    # Preprocess JSON content to fix common issues
-                    json_content = preprocess_json_content(json_content)
-
-                    try:
-                        evaluation_result = json.loads(json_content)
-                        logger.info(f"Successfully received and parsed Gemini Dharma response (attempt {attempt + 1}).")
-                        break  # Exit retry loop on success
-                    except json.JSONDecodeError as json_err:
-                        logger.error(f"Gemini Dharma attempt {attempt + 1}: Failed to decode JSON: {json_err}\nContent: {content}")
-                except json.JSONDecodeError as json_err:
-                    logger.error(f"Gemini Dharma attempt {attempt + 1}: Failed to decode JSON: {json_err}\nContent: {content}")
+                if extraction_success and evaluation_result:
+                    logger.info(f"Successfully received and parsed Gemini Dharma response (attempt {attempt + 1}).")
+                    break  # Exit retry loop on success
+                else:
+                    logger.error(f"Gemini Dharma attempt {attempt + 1}: Failed to extract JSON from response")
             else:
                 logger.warning(f"Gemini Dharma attempt {attempt + 1}: Received empty content.")
 

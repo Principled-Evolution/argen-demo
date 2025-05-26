@@ -478,24 +478,14 @@ Input Pairs:
     results = []
     parsed_evaluations = None
     try:
-        json_match = re.search(r'```json\\s*(\\[.*?])\\s*```', gemini_response_text, re.DOTALL)
-        if json_match:
-            json_content_array_str = json_match.group(1)
-        else:
-            start_index = gemini_response_text.find('[')
-            end_index = gemini_response_text.rfind(']')
-            if start_index != -1 and end_index != -1 and end_index > start_index:
-                json_content_array_str = gemini_response_text[start_index : end_index+1]
-            else:
-                logger.error(f"Gemini Helpfulness multi-eval: Failed to extract JSON array. Response: {gemini_response_text[:500]}")
-                track_gemini_error() # For the batch
-                return [DEFAULT_HELPFULNESS_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
+        # Use centralized JSON extraction
+        from src.utils.json_extractor import extract_json_from_response
+        parsed_evaluations, extraction_success = extract_json_from_response(gemini_response_text, "helpfulness_multi")
 
-        # preprocess_json_content is imported from gemini_rewards_fixed, which seems like an anachronism.
-        # Should use the one from gemini_rewards. For now, let\'s assume it\'s available or define/import it from gemini_rewards later.
-        # from src.reward_functions.gemini_rewards import preprocess_json_content
-        json_content_array_str = preprocess_json_content(json_content_array_str) # Assuming preprocess_json_content is available
-        parsed_evaluations = json.loads(json_content_array_str)
+        if not extraction_success or parsed_evaluations is None:
+            logger.error(f"Gemini Helpfulness multi-eval: Failed to extract JSON array. Response: {gemini_response_text[:500]}")
+            track_gemini_error() # For the batch
+            return [DEFAULT_HELPFULNESS_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
 
 
         if VERBOSE_LOGGING:
