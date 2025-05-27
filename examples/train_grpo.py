@@ -1804,20 +1804,14 @@ def main():
     logging.basicConfig = wrapped_basicConfig
 
     trainer_class = GRPOTrainer
-    try:
-        from fix_grpo_chat_template import extract_content_from_chat_response
+    # Import the chat response helper function from the proper module
+    from src.reward_functions.chat_response_helper import extract_content_from_chat_response
 
-        # Log an example of content extraction if verbose logging is enabled
-        if args.verbose_logging:
-            example_response = {"role": "assistant", "content": "This is a test response"}
-            extracted = extract_content_from_chat_response(example_response)
-            logger.info(f"Example content extraction: {extracted}")
-    except ImportError:
-        # Define a simple extract_content function if the imported one is not available
-        def extract_content_from_chat_response(response):
-            if isinstance(response, dict) and 'content' in response:
-                return response['content']
-            return response
+    # Log an example of content extraction if verbose logging is enabled
+    if args.verbose_logging:
+        example_response = {"role": "assistant", "content": "This is a test response"}
+        extracted = extract_content_from_chat_response(example_response)
+        logger.info(f"Example content extraction: {extracted}")
 
     # Wrap reward functions with verbose logging if enabled
     if args.verbose_logging:

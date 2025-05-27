@@ -15,7 +15,6 @@ import google.generativeai as genai
 from google.generativeai.types.generation_types import BlockedPromptException
 
 # Imports from src.utils and other project modules
-from src.reward_functions.gemini_rewards_fixed import preprocess_json_content
 from src.scope_definitions import SCOPE_SYSTEM_PROMPT, scope_penalty
 from src.utils.gemini_response_validator import GeminiDharmaResponse
 from src.utils.gemini_api_wrapper import TrackedGenerativeModel
