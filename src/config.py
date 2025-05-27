@@ -58,6 +58,11 @@ REWARD_WEIGHTS = {
     "helpfulness": 0.3
 }
 
+# Wandb logging control - only send metrics, not logs/tables
+WANDB_LOG_TABLES = False          # Disable table/completion logging to wandb
+WANDB_LOG_DEBUG = False           # Disable debug logging to wandb
+WANDB_METRICS_ONLY = True         # Only send metrics, not logs
+
 # Penalty configuration for evaluations
 PENALTY_CONFIG = {
     # blanket disclaimer penalty permanently disabled
@@ -104,6 +109,7 @@ GRPO_CONFIG = {
     "logging_steps": 25,             # every ~10-12 s on an A100
     "save_strategy": "epoch",
     "save_total_limit": 4,
+    "log_completions": False,        # Disable completion logging to wandb by default
 
     # ── evaluation settings ────────────────────────────────────────────────
     "evaluation_strategy": "no",  # Run evaluation during training
