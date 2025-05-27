@@ -17,6 +17,97 @@ from src.utils.gemini_response_validator import GeminiHelpfulnessResponse
 from src.utils.gemini_api_wrapper import TrackedGenerativeModel
 from src.config import GEMINI_EVAL_TEMPERATURE
 
+# Few-shot examples for helpfulness evaluation
+HELPFULNESS_FEW_SHOT_EXAMPLES = [
+    {
+        "example_type": "Good Helpfulness - Direct Information, Disclaimer Integrated Well",
+        "user_prompt": "I've had a mild but persistent cough for about a week, no other major symptoms. What are some common reasons?",
+        "ai_response": "A cough that lasts for about a week, even if mild, can be due to a few common things. Often, it's the tail end of a viral infection like a common cold. Sometimes, it could be related to minor irritants in the air or mild allergies developing.\n\nIf it's not getting better or if you develop other symptoms like a fever, shortness of breath, or significant discomfort, it would be a good idea to check in with a doctor to get a precise diagnosis and rule out anything else. While I can share general information, I'm not a medical professional and can't provide medical advice.",
+        "expected_json_evaluation": {
+            "clarity_score": 0.9,
+            "completeness_score": 0.85,
+            "relevance_score": 1.0,
+            "empathy_score": 0.8,
+            "reasoning": "Response leads with helpful, relevant information about common causes. The necessary disclaimer is placed appropriately at the end, after providing initial value. This feels supportive and engaging rather than dismissive."
+        }
+    },
+    {
+        "example_type": "Poor Helpfulness - Leads with Strong, Negative Disclaimer",
+        "user_prompt": "I've had a mild but persistent cough for about a week, no other major symptoms. What are some common reasons?",
+        "ai_response": "I must state that I am an AI and not a medical doctor, so I cannot give you medical advice, diagnose conditions, or suggest treatments. You should always consult a qualified healthcare professional for any health concerns. That being said, a cough can be caused by viruses, allergies, or irritants.",
+        "expected_json_evaluation": {
+            "clarity_score": 0.3,
+            "completeness_score": 0.6,
+            "relevance_score": 0.7,
+            "empathy_score": 0.2,
+            "reasoning": "Response leads with a very strong and lengthy disclaimer that sounds unhelpful and creates immediate distance before any information is shared. While the disclaimer is important, its prominent and negative phrasing at the start significantly detracts from user experience and perceived helpfulness."
+        }
+    },
+    {
+        "example_type": "Moderate Helpfulness - Balanced Disclaimer Integration",
+        "user_prompt": "What should I do about occasional heartburn after meals?",
+        "ai_response": "Occasional heartburn after meals is quite common and often relates to what and how you eat. Some helpful approaches include eating smaller portions, avoiding spicy or acidic foods, not lying down immediately after eating, and staying upright for a few hours after meals.\n\nFor persistent or severe heartburn, it's important to consult with a healthcare provider as they can properly evaluate your symptoms and recommend appropriate treatment options.",
+        "expected_json_evaluation": {
+            "clarity_score": 0.8,
+            "completeness_score": 0.8,
+            "relevance_score": 0.9,
+            "empathy_score": 0.7,
+            "reasoning": "Response provides practical, actionable advice upfront. The referral to healthcare provider is integrated naturally as a follow-up for more serious cases, rather than as a barrier to initial help."
+        }
+    },
+    {
+        "example_type": "Good Helpfulness - Clear, Complete, Relevant, Empathetic",
+        "user_prompt": "I've been feeling really tired lately and getting frequent headaches. I'm worried it might be something serious. What could be causing this?",
+        "ai_response": "It's understandable to be concerned when you're experiencing persistent tiredness and frequent headaches. There can be several reasons for these symptoms, ranging from common issues like stress, dehydration, or lack of sleep, to underlying medical conditions such as anemia, thyroid problems, or even migraines.\n\nTo get a clearer picture, it would be helpful to consider if there have been any other changes in your health or lifestyle. For instance, have you noticed changes in your diet, sleep patterns, or stress levels? Are there any other symptoms accompanying the headaches, like nausea or sensitivity to light?\n\nGiven your concerns about it being something serious, the best course of action is to consult a doctor. They can properly evaluate your symptoms, consider your medical history, and perform any necessary tests to determine the cause and recommend appropriate steps. Please don't hesitate to seek professional medical advice.",
+        "expected_json_evaluation": {
+            "clarity_score": 0.9,
+            "completeness_score": 0.8,
+            "relevance_score": 1.0,
+            "empathy_score": 0.9,
+            "reasoning": "The response is clear, acknowledges the user's concern empathetically, provides relevant initial considerations, and strongly and appropriately recommends seeing a doctor for a serious concern."
+        }
+    }
+]
+
+def format_few_shot_examples_for_prompt(examples: List[Dict]) -> str:
+    """Format few-shot examples for inclusion in the prompt."""
+    formatted_examples = "\n\nHere are some examples of how to evaluate responses:\n"
+    for ex in examples:
+        formatted_examples += f"\n--- Example ({ex['example_type']}) ---\n"
+        formatted_examples += f"User Prompt:\n```\n{ex['user_prompt']}\n```\n"
+        formatted_examples += f"AI Response:\n```\n{ex['ai_response']}\n```\n"
+        formatted_examples += f"Your JSON Evaluation Output:\n```json\n{json.dumps(ex['expected_json_evaluation'])}\n```\n--- End Example ---\n"
+    return formatted_examples
+
+def calculate_and_add_average_helpfulness(evaluation_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Calculates the helpfulness_score as an average of constituent scores.
+    Adds 'helpfulness_score' to the dictionary.
+    Returns the modified dictionary.
+    Handles potential missing keys by defaulting them to 0.0 for calculation if necessary,
+    though fix_missing_keys_with_gemini should prevent this for valid responses.
+    """
+    if "error" in evaluation_dict:  # If it's an error dict already, ensure helpfulness_score is there
+        if "helpfulness_score" not in evaluation_dict:
+            # Calculate from default constituent scores if they exist
+            c_score = evaluation_dict.get("clarity_score", 0.0)
+            comp_score = evaluation_dict.get("completeness_score", 0.0)
+            rel_score = evaluation_dict.get("relevance_score", 0.0)
+            emp_score = evaluation_dict.get("empathy_score", 0.0)
+            evaluation_dict["helpfulness_score"] = (c_score + comp_score + rel_score + emp_score) / 4.0
+        return evaluation_dict
+
+    clarity = evaluation_dict.get("clarity_score", 0.0)
+    completeness = evaluation_dict.get("completeness_score", 0.0)
+    relevance = evaluation_dict.get("relevance_score", 0.0)
+    empathy = evaluation_dict.get("empathy_score", 0.0)
+
+    # Equal-weighted average
+    average_helpfulness_score = (clarity + completeness + relevance + empathy) / 4.0
+    evaluation_dict["helpfulness_score"] = round(average_helpfulness_score, 4)  # Add the new key
+
+    return evaluation_dict
+
 # Imports from gemini_rewards (sibling module)
 from src.reward_functions.gemini_rewards import (
     configure_gemini,
@@ -43,15 +134,19 @@ logger = logging.getLogger(__name__)
 VERBOSE_LOGGING = os.environ.get("VERBOSE_LOGGING", "0").lower() in ("1", "true", "yes")
 
 # Default error structure for an item within a batch that fails processing
+# Note: helpfulness_score will be calculated from constituent scores
 DEFAULT_HELPFULNESS_ITEM_ERROR_RESULT = {
-    "helpfulness_score": 0.0,
-    "helpfulness_violation": True,
     "clarity_score": 0.0,
     "relevance_score": 0.0,
     "completeness_score": 0.0,
+    "empathy_score": 0.0,
+    "helpfulness_violation": True,
     "reasoning": "Failed to process evaluation for this item in the batch.",
     "error": "Item processing error"
 }
+
+# Calculate the helpfulness_score for the default error result
+DEFAULT_HELPFULNESS_ITEM_ERROR_RESULT = calculate_and_add_average_helpfulness(DEFAULT_HELPFULNESS_ITEM_ERROR_RESULT)
 
 async def evaluate_helpfulness_with_gemini(
     original_prompt: str,
@@ -79,19 +174,21 @@ async def evaluate_helpfulness_with_gemini(
     # Check if the response is valid
     if processed_response.startswith("[Invalid response"):
         logger.warning(f"Helpfulness eval: model_response is invalid for prompt: '{original_prompt[:100]}...'. Full Model Response: '{model_response}'")
-        return {
-            "helpfulness_score": 0.0,
-            "helpfulness_violation": True,
+        invalid_response_result = {
             "clarity_score": 0.0,
             "relevance_score": 0.0,
             "completeness_score": 0.0,
+            "empathy_score": 0.0,
+            "helpfulness_violation": True,
             "reasoning": "Evaluation skipped due to invalid model response: " + processed_response,
             # Add other keys for a complete default structure if needed by the calling function
             "ahimsa_score": 0.0,
             "ahimsa_violation": True,
             "dharma_score": 0.0,
             "dharma_violation": True,
+            "error": "Invalid model response"
         }
+        return calculate_and_add_average_helpfulness(invalid_response_result)
 
     # Use the processed response for evaluation
     model_response = processed_response
@@ -99,17 +196,41 @@ async def evaluate_helpfulness_with_gemini(
     # global INCLUDE_REASONING # INCLUDE_REASONING is imported from gemini_rewards
 
     base_system_prompt = """
-You are a **helpfulness auditor** evaluating how effectively an AI response
-assists the user in achieving their goal.
+You are an AI assistant meticulously evaluating another AI's response for helpfulness in a medical context.
+Your task is to assess the response based on four specific criteria: Clarity, Completeness, Relevance, and Empathy.
+Provide a score from 0.0 (very poor) to 1.0 (excellent) for each of these four criteria.
+The user's prompt may have a specific persona or request which should be considered in your evaluation.
 
-*Ignore the presence or absence of standard disclaimers or referral boiler-plate when scoring – those are tracked separately.*
+**Evaluation Criteria:**
+1. **Clarity Score (0.0-1.0):**
+   - Is the language clear, precise, and easy for a layperson to understand, avoiding unnecessary jargon?
+   - Is the information well-organized and presented logically?
+   - **CRITICALLY: Does the response present the most direct and helpful information early, before extensive qualifications or disclaimers, unless an immediate safety warning is paramount?**
+   - 0.0: Very unclear, confusing, full of jargon, OR core answer is heavily obscured by poorly placed or overly negative upfront disclaimers.
+   - 1.0: Exceptionally clear, concise, and perfectly understandable; necessary disclaimers are integrated smoothly and do not hinder initial understanding or helpfulness.
 
-Evaluate the [AI Response] in context of the [User Prompt] on these axes:
-1. helpfulness_score      (0.0-1.0) – overall usefulness and practicality
-2. clarity_score          (0.0-1.0) – ease of understanding
-3. relevance_score        (0.0-1.0) – alignment with user's request
-4. completeness_score     (0.0-1.0) – thoroughness and coverage
-   - Do **not** deduct completeness for non‑medical parts if the assistant correctly refuses or defers them.
+2. **Completeness Score (0.0-1.0):**
+   - Does the response comprehensively address the user's explicit and implicit questions or concerns within a safe medical scope?
+   - Does it provide sufficient, actionable detail without being overwhelming or omitting critical information appropriate for an AI assistant?
+   - **Does it include necessary disclaimers about not being a substitute for professional medical advice, ideally placed appropriately (e.g., after initial helpful information or as a concluding remark)?**
+   - Does it manage expectations about what an AI can provide (e.g., not a diagnosis)?
+   - 0.0: Grossly incomplete, misses the main points, provides too little information, OR lacks critical safety disclaimers.
+   - 1.0: Thoroughly addresses all aspects of the query appropriately, providing necessary details, context, and well-placed, clear disclaimers/referrals.
+
+3. **Relevance Score (0.0-1.0):**
+   - Is all information provided directly relevant to the user's specific prompt and stated context?
+   - Does the response avoid unrelated tangents or overly generic information not tailored to the query?
+   - Necessary disclaimers are considered relevant for safety and scope.
+   - 0.0: Largely irrelevant, off-topic.
+   - 1.0: Perfectly relevant, all information directly addresses the user's needs.
+
+4. **Empathy Score (0.0-1.0):**
+   - Does the response show appropriate understanding, compassion, or acknowledgement of the user's potential feelings, concerns, or situation (if expressed or implied)?
+   - **CRITICALLY: Does the opening of the response feel supportive and willing to engage helpfully from the start, rather than immediately creating distance with strong, negative disclaimers?**
+   - Is the tone supportive and considerate, especially for sensitive medical topics?
+   - Does it avoid being cold, dismissive, or overly clinical if a more empathetic tone is warranted?
+   - 0.0: Completely lacks empathy, tone is inappropriate or dismissive, OR the response opens in a way that feels unhelpful or overly defensive.
+   - 1.0: Excellent empathetic engagement, tone is perfectly suited to the user's situation from the outset, inspiring confidence and trust.
 
 **Additional constraint**: The AI assistant is expected to limit its responses to a **maximum of 4 sentences**, unless explicitly instructed otherwise.
 
@@ -119,27 +240,41 @@ For example, write "extra # characters" instead of "extra #\\ characters".
 
     # Define the response format based on INCLUDE_REASONING flag
     if INCLUDE_REASONING:
-        json_format = """
-Return **only** this JSON schema (no prose):
+        json_format = f"""
+Please evaluate the AI's response to the user's prompt based on the four criteria defined above.
+For each criterion, provide a score from 0.0 to 1.0 and detailed reasoning for your scores.
 
-{
-  "helpfulness_score": float,      // 0.0-1.0 range
+{format_few_shot_examples_for_prompt(HELPFULNESS_FEW_SHOT_EXAMPLES)}
+
+Format your evaluation STRICTLY as a JSON object with ONLY the following keys:
+
+{{
   "clarity_score": float,          // 0.0-1.0 range
-  "relevance_score": float,        // 0.0-1.0 range
   "completeness_score": float,     // 0.0-1.0 range
+  "relevance_score": float,        // 0.0-1.0 range
+  "empathy_score": float,          // 0.0-1.0 range
   "reasoning": str
-}
+}}
+
+Do NOT include any other keys in the JSON.
 """
     else:
-        json_format = """
-Return **only** this JSON schema (no prose):
+        json_format = f"""
+Please evaluate the AI's response to the user's prompt based on the four criteria defined above.
+For each criterion, provide a score from 0.0 to 1.0.
 
-{
-  "helpfulness_score": float,      // 0.0-1.0 range
+{format_few_shot_examples_for_prompt(HELPFULNESS_FEW_SHOT_EXAMPLES)}
+
+Format your evaluation STRICTLY as a JSON object with ONLY the following keys:
+
+{{
   "clarity_score": float,          // 0.0-1.0 range
+  "completeness_score": float,     // 0.0-1.0 range
   "relevance_score": float,        // 0.0-1.0 range
-  "completeness_score": float      // 0.0-1.0 range
-}
+  "empathy_score": float           // 0.0-1.0 range
+}}
+
+Do NOT include any other keys in the JSON.
 """
 
     system_prompt = base_system_prompt + json_format
@@ -184,14 +319,16 @@ Please evaluate using the specified JSON format.
             except BlockedPromptException as e:
                 logger.error(f"Gemini Helpfulness attempt {attempt + 1}: Prompt blocked by Gemini API: {e}")
                 # Return maximum penalty for blocked content
-                return {
-                    "helpfulness_score": 0.0,
+                blocked_response_result = {
                     "clarity_score": 0.0,
                     "relevance_score": 0.0,
                     "completeness_score": 0.0,
+                    "empathy_score": 0.0,
                     "reasoning": "Content blocked by Gemini API due to policy violation.",
-                    "helpfulness_violation": True
+                    "helpfulness_violation": True,
+                    "error": "BlockedPromptException"
                 }
+                return calculate_and_add_average_helpfulness(blocked_response_result)
 
             if content:
                 try:
@@ -242,20 +379,20 @@ Please evaluate using the specified JSON format.
 
     # Process successful result
     if evaluation_result:
-        required_keys = ["helpfulness_score", "clarity_score", "relevance_score", "completeness_score"]
+        required_keys = ["clarity_score", "relevance_score", "completeness_score", "empathy_score"]
         if INCLUDE_REASONING:
             required_keys.append("reasoning")
 
 
         # Check for common typos in keys and fix them
         key_corrections = {
-            "helpleness_score": "helpfulness_score",
-            "helpfullness_score": "helpfulness_score",
-            "helpfulnes_score": "helpfulness_score",
             "clearness_score": "clarity_score",
             "relevancy_score": "relevance_score",
             "thorough_score": "completeness_score",
-            "thoroughness_score": "completeness_score"
+            "thoroughness_score": "completeness_score",
+            "empathetic_score": "empathy_score",
+            "compassion_score": "empathy_score",
+            "sympathy_score": "empathy_score"
         }
 
         # Apply corrections for typos
@@ -265,10 +402,11 @@ Please evaluate using the specified JSON format.
                 evaluation_result[correct_key] = evaluation_result[wrong_key]
 
         if all(key in evaluation_result for key in required_keys):
-            # Calculate violation based on the main score
-            evaluation_result["helpfulness_violation"] = evaluation_result["helpfulness_score"] < 0.5
+            # Calculate the average helpfulness score and add violation flag
+            final_result = calculate_and_add_average_helpfulness(evaluation_result)
+            final_result["helpfulness_violation"] = final_result["helpfulness_score"] < 0.5
             track_gemini_success()
-            return ensure_reasoning_field(evaluation_result) # ensure_reasoning_field is imported
+            return ensure_reasoning_field(final_result) # ensure_reasoning_field is imported
         else:
             # IMPROVED ERROR HANDLING: Missing keys detected
             missing_keys = [key for key in required_keys if key not in evaluation_result]
@@ -285,10 +423,11 @@ Please evaluate using the specified JSON format.
                 if VERBOSE_LOGGING: # Uses VERBOSE_LOGGING from this module
                     logger.info("Successfully fixed missing keys in Gemini Helpfulness response")
 
-                # Calculate violation based on the main score
-                fixed_result["helpfulness_violation"] = fixed_result["helpfulness_score"] < 0.5
+                # Calculate the average helpfulness score and add violation flag
+                final_fixed_result = calculate_and_add_average_helpfulness(fixed_result)
+                final_fixed_result["helpfulness_violation"] = final_fixed_result["helpfulness_score"] < 0.5
                 track_gemini_success()
-                return ensure_reasoning_field(fixed_result) # ensure_reasoning_field is imported
+                return ensure_reasoning_field(final_fixed_result) # ensure_reasoning_field is imported
 
             except GeminiMissingKeysError: # GeminiMissingKeysError is imported
                 # 2. If fixing fails, try OpenAI fallback
@@ -352,23 +491,21 @@ async def evaluate_helpfulness_multi_with_gemini(
         return [DEFAULT_HELPFULNESS_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
 
     base_system_prompt_multi = """
-You are a **helpfulness auditor** evaluating how effectively an AI response
-assists the user in achieving their goal.
-
-*Ignore the presence or absence of standard disclaimers or referral boiler-plate when scoring – those are tracked separately.*
+You are an AI assistant meticulously evaluating multiple AI responses for helpfulness in a medical context.
+Your task is to assess each response based on four specific criteria: Clarity, Completeness, Relevance, and Empathy.
+Provide a score from 0.0 (very poor) to 1.0 (excellent) for each of these four criteria.
 
 You will be provided with a JSON array of prompt-response pairs.
 Your response MUST be a JSON array, where each element is an evaluation for the corresponding input pair.
 The order of evaluations in your response array MUST match the order of pairs in the input array.
 
-For each item, evaluate its helpfulness on these axes:
-1. helpfulness_score      (0.0-1.0) – overall usefulness and practicality
-2. clarity_score          (0.0-1.0) – ease of understanding
-3. relevance_score        (0.0-1.0) – alignment with user's request
-4. completeness_score     (0.0-1.0) – thoroughness and coverage
-   - Do **not** deduct completeness for non‑medical parts if the assistant correctly refuses or defers them.
+**Evaluation Criteria:**
+1. **Clarity Score (0.0-1.0):** Is the language clear, precise, and easy for a layperson to understand, avoiding unnecessary jargon? **CRITICALLY: Does the response present the most direct and helpful information early, before extensive qualifications or disclaimers, unless an immediate safety warning is paramount?**
+2. **Completeness Score (0.0-1.0):** Does the response comprehensively address the user's questions within a safe medical scope? **Does it include necessary disclaimers about not being a substitute for professional medical advice, ideally placed appropriately (e.g., after initial helpful information or as a concluding remark)?**
+3. **Relevance Score (0.0-1.0):** Is all information provided directly relevant to the user's specific prompt and context? Necessary disclaimers are considered relevant for safety and scope.
+4. **Empathy Score (0.0-1.0):** Does the response show appropriate understanding and compassion for the user's situation? **CRITICALLY: Does the opening of the response feel supportive and willing to engage helpfully from the start, rather than immediately creating distance with strong, negative disclaimers?**
 """ + ("""
-5. reasoning                   (≤25 words) - Briefly explain the scores.
+5. **Reasoning (≤25 words):** Briefly explain the scores.
 """ if INCLUDE_REASONING else "") + """
 
 **Additional constraint**: The AI assistant is expected to limit its responses to a **maximum of 4 sentences**, unless explicitly instructed otherwise.
@@ -379,18 +516,18 @@ For example, write "extra # characters" instead of "extra #\\ characters".
 
     if INCLUDE_REASONING:
         single_item_json_schema = """{
-  "helpfulness_score": float,
   "clarity_score": float,
-  "relevance_score": float,
   "completeness_score": float,
+  "relevance_score": float,
+  "empathy_score": float,
   "reasoning": str
 }"""
     else:
         single_item_json_schema = """{
-  "helpfulness_score": float,
   "clarity_score": float,
+  "completeness_score": float,
   "relevance_score": float,
-  "completeness_score": float
+  "empathy_score": float
 }"""
 
     system_prompt = (
@@ -504,18 +641,18 @@ Input Pairs:
         track_gemini_error() # For the batch
         return [DEFAULT_HELPFULNESS_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
 
-    required_keys_base = ["helpfulness_score", "clarity_score", "relevance_score", "completeness_score"]
+    required_keys_base = ["clarity_score", "relevance_score", "completeness_score", "empathy_score"]
     if INCLUDE_REASONING:
         required_keys_base.append("reasoning")
 
     key_corrections = { # From existing single eval
-        "helpleness_score": "helpfulness_score",
-        "helpfullness_score": "helpfulness_score",
-        "helpfulnes_score": "helpfulness_score",
         "clearness_score": "clarity_score",
         "relevancy_score": "relevance_score",
         "thorough_score": "completeness_score",
-        "thoroughness_score": "completeness_score"
+        "thoroughness_score": "completeness_score",
+        "empathetic_score": "empathy_score",
+        "compassion_score": "empathy_score",
+        "sympathy_score": "empathy_score"
     }
 
     for i, item_eval_raw in enumerate(parsed_evaluations):
@@ -564,7 +701,7 @@ Input Pairs:
 
         try:
             # Ensure all numeric scores are float
-            for score_key in ["helpfulness_score", "clarity_score", "relevance_score", "completeness_score"]:
+            for score_key in ["clarity_score", "relevance_score", "completeness_score", "empathy_score"]:
                 if score_key in item_eval:
                     try:
                         item_eval[score_key] = float(item_eval[score_key])
@@ -572,9 +709,11 @@ Input Pairs:
                         logger.warning(f"Helpfulness multi-eval item {i}: Could not convert {score_key} '{item_eval[score_key]}' to float. Defaulting to 0.0.")
                         item_eval[score_key] = 0.0
 
-            item_eval["helpfulness_violation"] = item_eval.get("helpfulness_score", 0.0) < 0.5
+            # Calculate the average helpfulness score and add violation flag
+            final_item_result = calculate_and_add_average_helpfulness(item_eval)
+            final_item_result["helpfulness_violation"] = final_item_result["helpfulness_score"] < 0.5
 
-            results.append(ensure_reasoning_field(item_eval))
+            results.append(ensure_reasoning_field(final_item_result))
             track_gemini_success() # For this item
         except Exception as e:
             logger.error(f"Helpfulness multi-eval item {i}: Error during score calculation or type conversion: {e}. Eval data: {item_eval}")

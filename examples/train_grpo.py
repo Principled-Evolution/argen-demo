@@ -177,7 +177,10 @@ from src.config import (
     REWARD_WEIGHTS,
     DEFAULT_TEMPERATURE,
     GRPO_TRAINING_TEMPERATURE,
-    PENALTY_CONFIG
+    PENALTY_CONFIG,
+    WANDB_LOG_TABLES,
+    WANDB_LOG_DEBUG,
+    WANDB_METRICS_ONLY
 )
 from src.reward_functions.trl_rewards import (
     ahimsa_reward_trl,
@@ -596,9 +599,12 @@ def run_benchmark_eval(checkpoint_dir: str, eval_temperature: float = DEFAULT_TE
 class CustomWandbLoggingCallback(TrainerCallback):
     """Logs additional metrics to W&B during training steps and logs audit table."""
 
-    def __init__(self, trainer_instance=None):
+    def __init__(self, trainer_instance=None, wandb_log_tables=False, wandb_log_debug=False, wandb_metrics_only=True):
         super().__init__()
         self._trainer = trainer_instance # Store trainer reference if needed
+        self.wandb_log_tables = wandb_log_tables
+        self.wandb_log_debug = wandb_log_debug
+        self.wandb_metrics_only = wandb_metrics_only
 
     def set_trainer(self, trainer):
         self._trainer = trainer # Method to set trainer after initialization if needed
@@ -617,27 +623,29 @@ class CustomWandbLoggingCallback(TrainerCallback):
     def on_step_end(self, args: 'TrainingArguments', state: TrainerState, control: TrainerControl, optimizer=None, lr_scheduler=None, **kwargs):
         """Log metrics and audit table at the end of a training step."""
         if state.is_local_process_zero and state.global_step > 0:
-            # CRITICAL DEBUG: Always log audit data status for diagnosis
-            logger.info(f"🔍 DEBUG Step {state.global_step}: CustomWandbLoggingCallback.on_step_end() called")
-            logger.info(f"🔍 DEBUG Step {state.global_step}: _audit_log_data length = {len(trl_rewards_module._audit_log_data)}")
-            logger.info(f"🔍 DEBUG Step {state.global_step}: _audit_log_data id = {id(trl_rewards_module._audit_log_data)}")
+            # CRITICAL DEBUG: Only log debug info if enabled
+            if self.wandb_log_debug:
+                logger.info(f"🔍 DEBUG Step {state.global_step}: CustomWandbLoggingCallback.on_step_end() called")
+                logger.info(f"🔍 DEBUG Step {state.global_step}: _audit_log_data length = {len(trl_rewards_module._audit_log_data)}")
+                logger.info(f"🔍 DEBUG Step {state.global_step}: _audit_log_data id = {id(trl_rewards_module._audit_log_data)}")
 
             # --- Log Average Reward Components ---
             # Calculate averages from the module-level _audit_log_data
             # This ensures averages are calculated from the data processed in the preceding step
             if trl_rewards_module._audit_log_data: # Check if list is populated
                 try:
-                    # ENHANCED DEBUG: Log detailed audit data structure
-                    logger.info(f"🔍 DEBUG Step {state.global_step}: _audit_log_data has {len(trl_rewards_module._audit_log_data)} entries")
-                    if trl_rewards_module._audit_log_data:
-                        logger.info(f"🔍 DEBUG Step {state.global_step}: Sample audit data keys: {list(trl_rewards_module._audit_log_data[0].keys())}")
-                        logger.info(f"🔍 DEBUG Step {state.global_step}: Sample audit data values: {trl_rewards_module._audit_log_data[0]}")
+                    # ENHANCED DEBUG: Only log detailed audit data structure if debug enabled
+                    if self.wandb_log_debug:
+                        logger.info(f"🔍 DEBUG Step {state.global_step}: _audit_log_data has {len(trl_rewards_module._audit_log_data)} entries")
+                        if trl_rewards_module._audit_log_data:
+                            logger.info(f"🔍 DEBUG Step {state.global_step}: Sample audit data keys: {list(trl_rewards_module._audit_log_data[0].keys())}")
+                            logger.info(f"🔍 DEBUG Step {state.global_step}: Sample audit data values: {trl_rewards_module._audit_log_data[0]}")
 
-                        # Check all entries for consistency
-                        all_keys = set()
-                        for entry in trl_rewards_module._audit_log_data:
-                            all_keys.update(entry.keys())
-                        logger.info(f"🔍 DEBUG Step {state.global_step}: All unique keys across entries: {sorted(all_keys)}")
+                            # Check all entries for consistency
+                            all_keys = set()
+                            for entry in trl_rewards_module._audit_log_data:
+                                all_keys.update(entry.keys())
+                            logger.info(f"🔍 DEBUG Step {state.global_step}: All unique keys across entries: {sorted(all_keys)}")
 
                     avg_ahimsa = float(np.mean([d.get("ahimsa_score", 0.0) for d in trl_rewards_module._audit_log_data]))
                     avg_dharma = float(np.mean([d.get("dharma_score", 0.0) for d in trl_rewards_module._audit_log_data]))
@@ -645,7 +653,8 @@ class CustomWandbLoggingCallback(TrainerCallback):
                     avg_combined = float(np.mean([d.get("combined_reward", 0.0) for d in trl_rewards_module._audit_log_data]))
                     avg_penalty = float(np.mean([d.get("penalty", 0.0) for d in trl_rewards_module._audit_log_data])) # Assuming penalty is stored
 
-                    logger.info(f"🔍 DEBUG Step {state.global_step}: Calculated averages - Ahimsa: {avg_ahimsa:.4f}, Dharma: {avg_dharma:.4f}, Helpfulness: {avg_helpfulness:.4f}, Combined: {avg_combined:.4f}")
+                    if self.wandb_log_debug:
+                        logger.info(f"🔍 DEBUG Step {state.global_step}: Calculated averages - Ahimsa: {avg_ahimsa:.4f}, Dharma: {avg_dharma:.4f}, Helpfulness: {avg_helpfulness:.4f}, Combined: {avg_combined:.4f}")
 
                     # --- Update Enhanced Metrics Tracker ---
                     # Extract individual values for EMA tracking
@@ -693,16 +702,18 @@ class CustomWandbLoggingCallback(TrainerCallback):
                 except Exception as e:
                     logger.error(f"Failed to calculate or log enhanced reward metrics at step {state.global_step}: {e}", exc_info=True)
             else:
-                # CRITICAL DEBUG: Log when _audit_log_data is empty
-                logger.warning(f"🚨 DEBUG Step {state.global_step}: _audit_log_data is EMPTY! No individual metrics will be logged.")
-                logger.warning(f"🚨 DEBUG Step {state.global_step}: This means the reward function didn't populate audit data or it was cleared.")
+                # CRITICAL DEBUG: Log when _audit_log_data is empty (only if debug enabled)
+                if self.wandb_log_debug:
+                    logger.warning(f"🚨 DEBUG Step {state.global_step}: _audit_log_data is EMPTY! No individual metrics will be logged.")
+                    logger.warning(f"🚨 DEBUG Step {state.global_step}: This means the reward function didn't populate audit data or it was cleared.")
             # ---
 
-            # --- Log Audit Table every 500 steps ---
+            # --- Log Audit Table every 500 steps (only if enabled) ---
             # Use module-level _audit_log_data populated by the reward function
             # Check if wandb is active and if this is the main process before logging
-            # Check if it's time to log the table AND if there's data
-            if state.global_step % 500 == 0 and trl_rewards_module._audit_log_data and wandb.run:
+            # Check if it's time to log the table AND if there's data AND if table logging is enabled
+            if (state.global_step % 500 == 0 and trl_rewards_module._audit_log_data and wandb.run and
+                self.wandb_log_tables):
                  try:
                      logger.info(f"Logging audit table for step {state.global_step} with {len(trl_rewards_module._audit_log_data)} entries...")
                      # Ensure all keys exist in the first item before creating columns
@@ -716,6 +727,10 @@ class CustomWandbLoggingCallback(TrainerCallback):
                          logger.warning(f"Audit log data found but first item is empty at step {state.global_step}, skipping table log.")
                  except Exception as e:
                      logger.error(f"Failed to log audit table for step {state.global_step} from rank {os.getenv('RANK', 'N/A')}: {e}", exc_info=True)
+            elif state.global_step % 500 == 0 and trl_rewards_module._audit_log_data and wandb.run:
+                # Log that we're skipping table logging due to configuration
+                if self.wandb_log_debug:
+                    logger.info(f"Skipping audit table logging for step {state.global_step} (wandb_log_tables=False)")
             # ---
 
             # CRITICAL FIX: Don't clear audit log data here - let reward functions handle clearing
@@ -813,7 +828,7 @@ class ConsoleMetricsCallback(TrainerCallback):
     Enhanced console metrics logger with better readability and trend indicators.
     Shows key metrics in a tabular format with color coding for changes.
     """
-    def __init__(self):
+    def __init__(self, debug_logging=False):
         super().__init__()
         self.last_metrics = {}
         self.most_recent_eval_metrics = {}
@@ -825,6 +840,7 @@ class ConsoleMetricsCallback(TrainerCallback):
         }
         self.log_eval_summary = True  # Set to True to log eval summary when detected
         self.trainer = None  # Will be set when callback is added to trainer
+        self.debug_logging = debug_logging  # Control debug logging
 
         # Check if formatting libraries are available
         self.has_tabulate = False
@@ -860,25 +876,29 @@ class ConsoleMetricsCallback(TrainerCallback):
         injected_metrics = False
         for callback in self.trainer.callback_handler.callbacks:
             if hasattr(callback, '_latest_reward_metrics'):
-                logger.info(f"🔍 DEBUG Step {step}: Found CustomWandbLoggingCallback with _latest_reward_metrics")
+                if getattr(self, 'debug_logging', False):
+                    logger.info(f"🔍 DEBUG Step {step}: Found CustomWandbLoggingCallback with _latest_reward_metrics")
                 if callback._latest_reward_metrics:
-                    logger.info(f"🔍 DEBUG Step {step}: Injecting {len(callback._latest_reward_metrics)} metrics into logs")
-                    logger.info(f"🔍 DEBUG Step {step}: Injected metrics keys: {list(callback._latest_reward_metrics.keys())}")
+                    if getattr(self, 'debug_logging', False):
+                        logger.info(f"🔍 DEBUG Step {step}: Injecting {len(callback._latest_reward_metrics)} metrics into logs")
+                        logger.info(f"🔍 DEBUG Step {step}: Injected metrics keys: {list(callback._latest_reward_metrics.keys())}")
                     logs.update(callback._latest_reward_metrics)
                     injected_metrics = True
                 else:
-                    logger.warning(f"🚨 DEBUG Step {step}: _latest_reward_metrics is empty or None")
+                    if getattr(self, 'debug_logging', False):
+                        logger.warning(f"🚨 DEBUG Step {step}: _latest_reward_metrics is empty or None")
                 break
 
-        if not injected_metrics:
+        if not injected_metrics and getattr(self, 'debug_logging', False):
             logger.warning(f"🚨 DEBUG Step {step}: No CustomWandbLoggingCallback found or no metrics to inject")
 
-        # ENHANCED DEBUG: Always log what keys are available in logs
-        logger.info(f"🔍 DEBUG Step {step}: Available log keys at step {step}: {list(logs.keys())}")
+        # ENHANCED DEBUG: Only log what keys are available if debug enabled
+        if getattr(self, 'debug_logging', False):
+            logger.info(f"🔍 DEBUG Step {step}: Available log keys at step {step}: {list(logs.keys())}")
 
-        # Check specifically for reward metrics
-        reward_keys = [k for k in logs.keys() if 'reward' in k.lower() or 'ahimsa' in k.lower() or 'dharma' in k.lower() or 'helpfulness' in k.lower()]
-        logger.info(f"🔍 DEBUG Step {step}: Reward-related keys: {reward_keys}")
+            # Check specifically for reward metrics
+            reward_keys = [k for k in logs.keys() if 'reward' in k.lower() or 'ahimsa' in k.lower() or 'dharma' in k.lower() or 'helpfulness' in k.lower()]
+            logger.info(f"🔍 DEBUG Step {step}: Reward-related keys: {reward_keys}")
 
         # Skip non-metrics logs
         if 'loss' not in logs and 'learning_rate' not in logs and 'reward' not in logs:
@@ -1249,6 +1269,22 @@ def main():
         type=str,
         default=None,
         help="Weights & Biases run name"
+    )
+    parser.add_argument(
+        "--wandb_log_tables",
+        action="store_true",
+        help="Enable logging of tables (completions, audit data) to wandb (default: False)"
+    )
+    parser.add_argument(
+        "--wandb_log_debug",
+        action="store_true",
+        help="Enable debug logging to wandb (default: False)"
+    )
+    parser.add_argument(
+        "--wandb_metrics_only",
+        action="store_true",
+        default=True,
+        help="Only send metrics to wandb, not logs or tables (default: True)"
     )
     parser.add_argument(
         "--use_basic_prompt",
@@ -1677,7 +1713,8 @@ def main():
         sync_ref_model=args.sync_ref_model if args.sync_ref_model is not None else grpo_config.get("sync_ref_model", False),
         ref_model_mixup_alpha=args.ref_model_mixup_alpha if args.ref_model_mixup_alpha is not None else grpo_config.get("ref_model_mixup_alpha", 0.6),
         ref_model_sync_steps=args.ref_model_sync_steps if args.ref_model_sync_steps is not None else grpo_config.get("ref_model_sync_steps", 512),
-        # --- END ADDED ---
+        # --- REMOVED: Can't pass custom args to GRPOConfig ---
+        # wandb control flags will be stored separately and accessed by callbacks
     )
 
     # Apply the new command-line parameters if provided
@@ -1877,10 +1914,15 @@ def main():
 
     # Instantiate and add callbacks
     # Ensure only one CustomWandbLoggingCallback is instantiated and added
-    custom_logging_callback = CustomWandbLoggingCallback()
+    custom_logging_callback = CustomWandbLoggingCallback(
+        trainer_instance=trainer,
+        wandb_log_tables=args.wandb_log_tables,
+        wandb_log_debug=args.wandb_log_debug,
+        wandb_metrics_only=args.wandb_metrics_only
+    )
     custom_logging_callback.set_trainer(trainer)
     log_eval_command_callback = LogEvalCommandCallback() # Instantiate new callback
-    console_metrics_callback = ConsoleMetricsCallback()
+    console_metrics_callback = ConsoleMetricsCallback(debug_logging=args.wandb_log_debug)
     console_metrics_callback.trainer = trainer  # Set trainer reference for callback communication
 
     # Check if default WandbCallback is already added by report_to=['wandb']
@@ -1915,6 +1957,15 @@ def main():
                    f"gamma={args.adaptive_weights_gamma}, min_w={args.adaptive_weights_min}")
 
     logger.info("Added CustomWandbLoggingCallback, LogEvalCommandCallback, and ConsoleMetricsCallback.")
+
+    # Log wandb control configuration
+    logger.info(f"Wandb logging configuration: tables={args.wandb_log_tables}, debug={args.wandb_log_debug}, metrics_only={args.wandb_metrics_only}")
+    if not args.wandb_log_tables:
+        logger.info("✅ Audit tables and completion tables will NOT be sent to wandb (bandwidth saving enabled)")
+    if not args.wandb_log_debug:
+        logger.info("✅ Debug logging to wandb is DISABLED (noise reduction enabled)")
+    if args.wandb_metrics_only:
+        logger.info("✅ Only metrics will be sent to wandb (logs and tables excluded)")
 
     # Add early stopping callback if enabled
     if args.early_stopping and args.evaluation_strategy in ["steps", "epoch"]:
