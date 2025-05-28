@@ -52,6 +52,12 @@ except ImportError:
     has_dotenv = False
     print("Warning: python-dotenv not found. Will rely on environment variables only.")
 
+# Add project root to path to allow importing from src
+# This is needed when the script is called as a subprocess
+project_root = Path(__file__).resolve().parents[2]  # Go up two levels from src/data_utils/
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 # Import the centralized scope definitions
 from src.scope_definitions import get_scope_prompt_for_text
 from src.utils.gemini_api_wrapper import TrackedGenerativeModel

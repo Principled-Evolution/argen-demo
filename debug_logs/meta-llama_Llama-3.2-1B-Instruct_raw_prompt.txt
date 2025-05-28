@@ -1,5 +1,0 @@
-System: You are a helpful assistant.
-
-User: Hello, how are you?
-
-Assistant:
