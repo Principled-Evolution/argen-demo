@@ -167,8 +167,8 @@ from transformers.trainer_callback import EarlyStoppingCallback
 import numpy as np
 from datasets import Dataset, load_dataset
 
-from src.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
-from src.config import (
+from argen.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
+from argen.config import (
     DEFAULT_MODEL_ID,
     DEFAULT_SCENARIOS_PATH,
     DEFAULT_VALIDATION_SCENARIOS_PATH,
@@ -182,15 +182,15 @@ from src.config import (
     WANDB_LOG_DEBUG,
     WANDB_METRICS_ONLY
 )
-from src.reward_functions.trl_rewards import (
+from argen.reward_functions.trl_rewards import (
     ahimsa_reward_trl,
     dharma_reward_trl,
     combined_reward_trl,
     helpfulness_reward_trl,
 )
 # CRITICAL FIX: Import the module itself to get the exact same reference
-import src.reward_functions.trl_rewards as trl_rewards_module
-from src.callbacks.adaptive_weights import MeanAdaptiveWeights
+import argen.reward_functions.trl_rewards as trl_rewards_module
+from argen.training.callbacks.adaptive_weights import MeanAdaptiveWeights
 from examples.evaluate_trained_model import perform_evaluation
 
 # Enhanced metrics tracking
@@ -312,10 +312,10 @@ reset_logging_config()
 
 # --- ADDED: Import hash verification utility ---
 try:
-    from src.utils.data_integrity import verify_prompt_tier_hash, _DELIMITER
+    from argen.utils.data_integrity import verify_prompt_tier_hash, _DELIMITER
 except ImportError as e:
     print(f"Error importing hashing utilities: {e}")
-    print("Ensure you are running this script from the project root directory or have the 'src' directory in your PYTHONPATH.")
+    print("Ensure you are running this script from the project root directory or have the 'argen' directory in your PYTHONPATH.")
     sys.exit(1)
 # --- END ADDED ---
 
@@ -1805,7 +1805,7 @@ def main():
 
     trainer_class = GRPOTrainer
     # Import the chat response helper function from the proper module
-    from src.reward_functions.chat_response_helper import extract_content_from_chat_response
+    from argen.reward_functions.chat_response_helper import extract_content_from_chat_response
 
     # Log an example of content extraction if verbose logging is enabled
     if args.verbose_logging:

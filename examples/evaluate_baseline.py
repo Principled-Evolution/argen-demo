@@ -18,9 +18,9 @@ import time
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from src.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
-from src.evaluation.openai_evaluator import evaluate_model_with_llm
-from src.config import (
+from argen.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
+from argen.evaluation.openai_evaluator import evaluate_model_with_llm
+from argen.config import (
     DEFAULT_MODEL_ID,
     DEFAULT_SCENARIOS_PATH,
     DEFAULT_OUTPUT_BASE,
@@ -255,22 +255,22 @@ async def evaluate_responses_with_gemini(
     """
     Evaluate pre-generated responses using Gemini in either batch or individual mode.
     """
-    from src.evaluation.openai_evaluator import (
+    from argen.evaluation.openai_evaluator import (
         REWARD_WEIGHTS, PENALTY_CONFIG,
         calculate_metrics, GEMINI_EVAL_MODEL
     )
-    from src.reward_functions.gemini_rewards import DEFAULT_EVAL_RESPONSE
-    from src.reward_functions.gemini.ahimsa import (
+    from argen.reward_functions.gemini_rewards import DEFAULT_EVAL_RESPONSE
+    from argen.reward_functions.gemini.ahimsa import (
         evaluate_ahimsa_with_gemini, batch_process_ahimsa_evaluations_concurrently
     )
-    from src.reward_functions.gemini.dharma import (
+    from argen.reward_functions.gemini.dharma import (
         evaluate_dharma_with_gemini, batch_process_dharma_evaluations_concurrently
     )
-    from src.reward_functions.gemini.helpfulness import (
+    from argen.reward_functions.gemini.helpfulness import (
         evaluate_helpfulness_with_gemini, batch_process_helpfulness_evaluations_concurrently
     )
 
-    from src.config import GRPO_CONFIG
+    from argen.config import GRPO_CONFIG
     import datetime
 
     evaluation_results = []
@@ -550,7 +550,7 @@ async def run_comparison_mode(
         os.remove(temp_output)
 
     # Reset API tracker for batch mode
-    from src.utils.gemini_api_tracker import GeminiAPITracker
+    from argen.utils.gemini_api_tracker import GeminiAPITracker
     tracker = GeminiAPITracker()
     tracker.reset()
 

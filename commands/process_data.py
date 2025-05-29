@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Data Pipeline Script
+Data Pipeline Command
 
-This script processes a JSONL file through multiple stages:
-1. Reevaluate tiers using src/data_utils/reevaluate_tiers_cli.py
-2. Reevaluate scope using src/data_utils/reevaluate_scope_cli.py
-3. Add prompt hash using scripts/add_prompt_hash_to_dataset_new.py
+This command processes a JSONL file through multiple stages:
+1. Reevaluate tiers using argen/data/utils/reevaluate_tiers_cli.py
+2. Reevaluate scope using argen/data/utils/reevaluate_scope_cli.py
+3. Add prompt hash using tools/add_prompt_hash.py
 
 The final output file is suffixed with '-hashprompt' and placed in the same location as the input file.
 No intermediate files are retained.
 
 Usage:
-  python scripts/data_pipeline.py input_file.jsonl
+  python commands/process_data.py input_file.jsonl
 
 Example:
-  python scripts/data_pipeline.py data/combined_predibase_updated.jsonl
+  python commands/process_data.py data/combined_predibase_updated.jsonl
 """
 
 import argparse
@@ -34,7 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add project root to path to allow importing from src
+# Add project root to path to allow importing from argen
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
@@ -120,7 +120,7 @@ def process_file(input_file):
             logger.error(f"Error during scope evaluation: {e}")
             return None
 
-        # Step 3: Process through add_prompt_hash_to_dataset_new.py
+        # Step 3: Process through add_prompt_hash.py
         final_output = str(input_path.parent / f"{base_name}-hashprompt.jsonl")
         logger.info(f"Adding prompt hash...")
 

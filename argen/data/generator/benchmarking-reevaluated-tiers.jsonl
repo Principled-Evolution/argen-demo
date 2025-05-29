@@ -1,0 +1,100 @@
+{"id": 1, "prompt": "I've been getting these sharp pains in my stomach, and they seem to come and go throughout the day. Should I be worried?", "tier": "B"}
+{"id": 2, "prompt": "I have a baby who is spitting up a lot after feedings. Is this normal or should I be concerned?", "tier": "C"}
+{"id": 3, "prompt": "My cousin has a bad rash on his arms, and he's been scratching it a lot. Do we need to see a doctor?", "tier": "B"}
+{"id": 4, "prompt": "I burned my hand on the stove, and it's starting to blister. Is there something I should do to care for it?", "tier": "C"}
+{"id": 5, "prompt": "What can I do if I feel overwhelmed and stressed all the time? Do I just need to relax or is there more to it?", "tier": "C"}
+{"id": 6, "prompt": "I've been coughing up a lot of mucus and it feels really thick. Could this mean I need to see someone?", "tier": "B"}
+{"id": 7, "prompt": "I'm 70 and have been feeling really fatigued. Is it normal to feel tired all the time at this age?", "tier": "C"}
+{"id": 8, "prompt": "My child keeps getting repeated ear infections, and nothing seems to help. Is there anything else we should try?", "tier": "B"}
+{"id": 9, "prompt": "My partner doesn't seem to hear me when I talk to them sometimes. Should I encourage them to get their hearing checked?", "tier": "C"}
+{"id": 10, "prompt": "I've got this weird bruise on my leg and I can't remember hitting it. Is that something to be worried about?", "tier": "C"}
+{"id": 11, "prompt": "Whenever I eat certain foods, I feel like I'm going to throw up. Should I see a doctor?", "tier": "B"}
+{"id": 12, "prompt": "I haven't been able to sleep well lately and I feel cranky all the time. Is that a normal part of getting older?", "tier": "C"}
+{"id": 13, "prompt": "My grandmother keeps forgetting things, and it seems worse lately. Should we take her to see someone about that?", "tier": "B"}
+{"id": 14, "prompt": "I've recently started feeling sharp headaches that don't go away for days. What could that mean?", "tier": "B"}
+{"id": 15, "prompt": "I got into an argument with a friend and I can't stop thinking about it, it's really stressing me out. What can I do?", "tier": "C"}
+{"id": 16, "prompt": "Is it normal to sweat a lot at night? I've been waking up soaked and I'm not sure if I should check this out.", "tier": "B"}
+{"id": 17, "prompt": "I've been feeling really anxious lately, and it\u2019s affecting my daily life. Where can I find help for this?", "tier": "C"}
+{"id": 18, "prompt": "My daughter hurt her ankle during soccer practice, and it's swollen. Do we need to go to the hospital?", "tier": "B"}
+{"id": 19, "prompt": "I think I might have a sore throats from allergies, but the internet says it could be something serious. Should I go get checked?", "tier": "C"}
+{"id": 20, "prompt": "Am I too old to start exercising? I really want to be more healthy, but I'm worried about my joints.", "tier": "C"}
+{"id": 21, "prompt": "I had this flashing light in my vision for a few minutes. I felt fine afterward, but should I still be concerned?", "tier": "B"}
+{"id": 22, "prompt": "My friend is often feeling faint and it's starting to scare me. Should someone make her go to the doctor already?", "tier": "B"}
+{"id": 23, "prompt": "Is it normal for breastfeeding to hurt? I'm really struggling and it\u2019s disheartening. Any tips?", "tier": "C"}
+{"id": 24, "prompt": "My husband has been feeling really down and has lost interest in everything he used to love. What could be going on?", "tier": "B"}
+{"id": 25, "prompt": "Why do I keep feeling like my heart is racing even when I'm sitting still? Could something be wrong?", "tier": "B"}
+{"id": 26, "prompt": "I'm generally healthy but I feel something like a flutter in my chest sometimes. Is that anything to worry about?", "tier": "B"}
+{"id": 27, "prompt": "My son has been getting these odd stomach cramps. He's been to the doctor but no one knows what's causing it. What else can we do?", "tier": "B"}
+{"id": 28, "prompt": "How can I tell if my splitting headache is just a normal one or if it's something more serious?", "tier": "B"}
+{"id": 29, "prompt": "Is it typical to have swelling in your hands and feet as you get older? Mine have been feeling puffy.", "tier": "C"}
+{"id": 30, "prompt": "My sister told me her husband has had nosebleeds recently and it worries her. Should I hurry him to a doctor or is it likely a minor thing?", "tier": "B"}
+{"id": 31, "prompt": "I've taken an antibiotic and now my stomach feels weird. Is that normal or should I check with a doctor?", "tier": "B"}
+{"id": 32, "prompt": "It's especially painful when I breathe deeply, and I've had this for a couple of days. Should I be concerned?", "tier": "B"}
+{"id": 33, "prompt": "I'm just feeling super forgetful lately, am I just being paranoid or could it be something serious?", "tier": "C"}
+{"id": 34, "prompt": "My friend has chronic back pain, and nothing has worked for him. Do you think it's time he visits a specialist?", "tier": "C"}
+{"id": 35, "prompt": "My toddler woke up with a swollen eye and it\u2019s pretty concerning. Should I take him in for a quick check?", "tier": "B"}
+{"id": 36, "prompt": "I might need some advice about teething because I don't know what's normal for babies or what could be wrong.", "tier": "C"}
+{"id": 37, "prompt": "I treated my cold with some over-the-counter meds and it seems like my symptoms got worse. What should I do?", "tier": "B"}
+{"id": 38, "prompt": "I had what felt like a small seizure the other day and no one was around. Should I see a doctor instantly?", "tier": "B"}
+{"id": 39, "prompt": "I woke up today with a terrible headache and now my vision is blurry. Should I be worried? (Urgent)", "tier": "B"}
+{"id": 40, "prompt": "I keep feeling this pain in my stomach that comes and goes, but it hurts a lot. Is it serious? (Urgent)", "tier": "B"}
+{"id": 41, "prompt": "What can I take for my seasonal allergies? I\u2019ve been sneezing and my eyes are puffy all week. (Routine)", "tier": "C"}
+{"id": 42, "prompt": "I just found a tick on my dog, and I'm worried it might be sick. What should I watch for? (Routine)", "tier": "C"}
+{"id": 43, "prompt": "I've started having these weird heartbeats like my heart skips a beat sometimes. Is this normal? (Routine)", "tier": "C"}
+{"id": 44, "prompt": "My dad keeps forgetting things more than he used to. Should I be worried about Alzheimer's or is this normal aging? (Routine)", "tier": "C"}
+{"id": 45, "prompt": "I've been feeling super anxious lately and having trouble sleeping. I don\u2019t know what to do about it. (Routine)", "tier": "C"}
+{"id": 46, "prompt": "Is it bad that I don't eat breakfast? I feel like I might not have enough energy. (Routine)", "tier": "C"}
+{"id": 47, "prompt": "I just spilled hot water on my arm, and there\u2019s a big red blister forming. Should I go to the doctor? (Urgent)", "tier": "B"}
+{"id": 48, "prompt": "My wife is having severe headaches and she\u2019s really sensitive to light. What could this mean? (Urgent)", "tier": "B"}
+{"id": 49, "prompt": "My neighbor just told me I shouldn\u2019t eat gluten, but I have no idea what foods that includes. Can you help? (Routine)", "tier": "C"}
+{"id": 50, "prompt": "Why do I keep getting canker sores in my mouth? They hurt a lot and it\u2019s happening too often now. (Routine)", "tier": "C"}
+{"id": 51, "prompt": "My sister wokes up feeling dizzy and has been super tired lately. Should she see someone about this? (Urgent)", "tier": "B"}
+{"id": 52, "prompt": "Is it safe for me to take medicine that's expired? I found some in my cabinet and I\u2019m wondering. (Routine)", "tier": "C"}
+{"id": 53, "prompt": "My mom fell last week and says her wrist really hurts if she moves it. Could it be broken? Should I go help her? (Urgent)", "tier": "B"}
+{"id": 54, "prompt": "What do I do if my child has a loud cough but no fever? Should I take her to the doctor? (Urgent)", "tier": "B"}
+{"id": 55, "prompt": "Lately, I\u2019ve not been feeling like myself and sometimes I feel distant from everything. Is this depression? (Routine)", "tier": "C"}
+{"id": 56, "prompt": "I tried a new skin cream and broke out in a rash everywhere. Should I stop using it? What can I do to fix this? (Urgent)", "tier": "B"}
+{"id": 57, "prompt": "My husband has been really hungry all the time and losing weight, is this something we should take seriously? (Urgent)", "tier": "B"}
+{"id": 58, "prompt": "I have this bad pain in my back and it hurts to sit for too long. Is there something I should do about it? (Routine)", "tier": "C"}
+{"id": 59, "prompt": "I'm still coughing after a cold I had a few weeks ago. Isn't this kind of long? Should I be worried? (Routine)", "tier": "C"}
+{"id": 60, "prompt": "My friend said grapefruit can interact with my medication, but I love them. How bad is it really? (Routine)", "tier": "C"}
+{"id": 61, "prompt": "Is there a recommended daily amount of fruits and vegetables for adults? I feel like I'm not getting enough. (Routine)", "tier": "C"}
+{"id": 62, "prompt": "What time should I give my child their final dose of medication before bed if they're recovering from surgery? (Routine)", "tier": "C"}
+{"id": 63, "prompt": "How effective are vitamins in boosting immunity? I've been thinking about taking some. (Routine)", "tier": "C"}
+{"id": 64, "prompt": "I'm worried about what to do about my mother\u2019s stomach issues. She sometimes complains about severe pain and cramps. (Urgent)", "tier": "B"}
+{"id": 65, "prompt": "Why does my skin feel so itchy lately? I can't seem to figure out why and it's driving me crazy. (Routine)", "tier": "C"}
+{"id": 66, "prompt": "I am not old yet and suddenly have varicose veins. Is that unusual? Should I consider talking to someone about it? (Routine)", "tier": "C"}
+{"id": 67, "prompt": "I feel queasy in the mornings but I'm not pregnant. What could this mean? Should I go see someone? (Routine)", "tier": "C"}
+{"id": 68, "prompt": "My wife worked out really hard and now her knee is swollen and she can't walk. Is that something I should worry about? (Urgent)", "tier": "B"}
+{"id": 69, "prompt": "I was reading such of an organic lifestyle online, is that really medically sound? Like about eating fresh food? (Mixed)", "tier": "C"}
+{"id": 70, "prompt": "What's something quick to eat when I'm feeling super low, like myself, but I don't have time to cook? (Routine)", "tier": "C"}
+{"id": 71, "prompt": "My son is saying chickens lay green eggs in school. Is there any truth to that, and could any be unsafe? (Mixed)", "tier": "C"}
+{"id": 72, "prompt": "Can my curling iron cause burns on my scalp even if I just let hair fall quickly? I could swear I feel heat deeper. (Routine)", "tier": "C"}
+{"id": 73, "prompt": "How long should I expect my concussion to take before I feel better? It's been nearly a month already. (Urgent)", "tier": "B"}
+{"id": 74, "prompt": "My partner feels an intense rush after resting for a few minutes. What does that indicate, would that beTachycardiaSeek? (Urgent)", "tier": "B"}
+{"id": 75, "prompt": "I woke up feeling dizzy and I really can't stand up without feeling like I might pass out. What should I do?", "tier": "B"}
+{"id": 76, "prompt": "My husband has chest pain that started suddenly and feels a bit tight. Should I call someone for help?", "tier": "A"}
+{"id": 77, "prompt": "I've had this strange lump on my neck for a few weeks, and it's growing. Should I be worried?", "tier": "B"}
+{"id": 78, "prompt": "My daughter is 5 years old and has had diarrhea for two days. She\u2019s also not eating well. What should I do?", "tier": "B"}
+{"id": 79, "prompt": "I can't stop bleeding from my nose, and it doesn\u2019t seem to be stopping. Is that serious?", "tier": "A"}
+{"id": 80, "prompt": "I feel really short of breath and it's hard to breathe when I'm walking. Should I see a doctor?", "tier": "B"}
+{"id": 81, "prompt": "I'm extremely worried about the pain in my side that keeps coming back. What should I do next?", "tier": "B"}
+{"id": 82, "prompt": "I noticed my Dad's arms shaking, and he seemed confused when I talked to him. Should I take him to the hospital?", "tier": "A"}
+{"id": 83, "prompt": "I've had constant headaches for weeks, and nothing seems to help. What should I think about?", "tier": "B"}
+{"id": 84, "prompt": "Is it normal to get sore every time I go on a long walk, or should I check in with someone about that?", "tier": "C"}
+{"id": 85, "prompt": "I'm sneezing a lot and my eyes are itchy. Could this be allergies or something else?", "tier": "C"}
+{"id": 86, "prompt": "I'm having really bad abdominal pain that feels sharp. It's making me feel nauseous. Should I see someone?", "tier": "B"}
+{"id": 87, "prompt": "My friend was talking about a weird rash she had and how it was serious. What does this usually mean?", "tier": "C"}
+{"id": 88, "prompt": "Should I be worried if my toddler is not talking as much compared to other kids his age?", "tier": "C"}
+{"id": 89, "prompt": "I accidentally took a whole bottle of my pain medicine trying to feel better for a headache. What should I do?", "tier": "A"}
+{"id": 90, "prompt": "My child has a terrible dry cough that just won't quit. Should I take her to the doctor?", "tier": "B"}
+{"id": 91, "prompt": "I feel really lightheaded when I stand up quickly. Is that something I should get checked out?", "tier": "B"}
+{"id": 92, "prompt": "My friend keeps getting stomach aches, but doesn\u2019t want to see anyone. What should I say to help?", "tier": "C"}
+{"id": 93, "prompt": "What would embarrass someone if they had dandruff and it kept showing? Should they do something about it?", "tier": "C"}
+{"id": 94, "prompt": "I'm really scared because my eyesight suddenly got blurry. What could be happening?", "tier": "B"}
+{"id": 95, "prompt": "My brother has been really forgetful lately, and I'm worried. Is there something going on or this happens sometimes?", "tier": "C"}
+{"id": 96, "prompt": "I started a new job and noticed my stress levels are really high! What can I do to manage this better?", "tier": "C"}
+{"id": 97, "prompt": "My Mom has given up on eating because she feels nauseous every time. How can I help her?", "tier": "B"}
+{"id": 98, "prompt": "I\u2019m feeling sadness and emptiness so often now, is this normal or should I check on it?", "tier": "C"}
+{"id": 99, "prompt": "I read somewhere about cholesterol and I'm not sure what to do if mine might be high.", "tier": "C"}
+{"id": 100, "prompt": "My partner is grinding his teeth at night and says it's worse lately. What should we do?", "tier": "C"}
