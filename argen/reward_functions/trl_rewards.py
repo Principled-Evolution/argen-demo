@@ -38,7 +38,7 @@ DEFAULT_EVAL_RESPONSE = {
 }
 
 # Import the async evaluation functions from openai_rewards
-from src.reward_functions.openai_rewards import (
+from argen.reward_functions.openai_rewards import (
     evaluate_ahimsa_with_openai,
     evaluate_dharma_with_openai,
     evaluate_helpfulness_with_openai
@@ -201,9 +201,9 @@ def configure_gemini_reasoning(include_reasoning: bool):
     """
     try:
         # This import should be at the top level, or set_include_reasoning needs to be imported from gemini_rewards
-        # Assuming set_include_reasoning is available via `from src.reward_functions.gemini_rewards import ...`
+        # Assuming set_include_reasoning is available via `from argen.reward_functions.gemini_rewards import ...`
         # If not, this line will cause an error. For now, assuming it's imported.
-        from src.reward_functions.gemini_rewards import set_include_reasoning
+        from argen.reward_functions.gemini_rewards import set_include_reasoning
         set_include_reasoning(include_reasoning)
         logger.info(f"TRL: Set include_reasoning to {include_reasoning} for Gemini evaluations")
     except NameError: # If set_include_reasoning is not defined (e.g. gemini_rewards itself failed to import)
@@ -231,7 +231,7 @@ def run_async_safely(coro):
 
 # --- REMOVED: _wandb_log_safe helper function is no longer needed here ---
 
-from src.reward_functions.chat_response_helper import process_completions # Import the helper function
+from argen.reward_functions.chat_response_helper import process_completions # Import the helper function
 
 def ahimsa_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict]]], **kwargs) -> List[float]:
     """
@@ -248,7 +248,7 @@ def ahimsa_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict
         List of Ahimsa reward scores
     """
     # Check if we're in separate rewards mode and should use shared coordinator
-    from src.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
+    from argen.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
 
     if is_separate_rewards_mode():
         logger.info("ahimsa_reward_trl: Using shared evaluation coordinator for concurrent evaluation")
@@ -348,7 +348,7 @@ def ahimsa_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict
                 logger.info(f"ahimsa_reward_trl: Using single-call approach for {len(prompts)} items")
 
                 # Import the single evaluation function
-                from src.reward_functions.gemini.ahimsa import evaluate_ahimsa_with_gemini
+                from argen.reward_functions.gemini.ahimsa import evaluate_ahimsa_with_gemini
 
                 # Set up semaphore for concurrency control
                 max_concurrent = GRPO_CONFIG.get("gemini_single_call_max_concurrent", 200)
@@ -426,7 +426,7 @@ def dharma_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict
         List of Dharma reward scores
     """
     # Check if we're in separate rewards mode and should use shared coordinator
-    from src.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
+    from argen.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
 
     if is_separate_rewards_mode():
         logger.info("dharma_reward_trl: Using shared evaluation coordinator for concurrent evaluation")
@@ -524,7 +524,7 @@ def dharma_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict
                 logger.info(f"dharma_reward_trl: Using single-call approach for {len(prompts)} items")
 
                 # Import the single evaluation function
-                from src.reward_functions.gemini.dharma import evaluate_dharma_with_gemini
+                from argen.reward_functions.gemini.dharma import evaluate_dharma_with_gemini
 
                 # Set up semaphore for concurrency control
                 max_concurrent = GRPO_CONFIG.get("gemini_single_call_max_concurrent", 200)
@@ -612,7 +612,7 @@ def helpfulness_reward_trl(prompts: List[str], completions: List[Union[str, List
         List of Helpfulness reward scores
     """
     # Check if we're in separate rewards mode and should use shared coordinator
-    from src.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
+    from argen.reward_functions.shared_evaluation_coordinator import is_separate_rewards_mode, get_shared_coordinator
 
     if is_separate_rewards_mode():
         logger.info("helpfulness_reward_trl: Using shared evaluation coordinator for concurrent evaluation")
@@ -694,7 +694,7 @@ def helpfulness_reward_trl(prompts: List[str], completions: List[Union[str, List
                 logger.info(f"helpfulness_reward_trl: Using single-call approach for {len(prompts)} items")
 
                 # Import the single evaluation function
-                from src.reward_functions.gemini.helpfulness import evaluate_helpfulness_with_gemini
+                from argen.reward_functions.gemini.helpfulness import evaluate_helpfulness_with_gemini
 
                 # Set up semaphore for concurrency control
                 max_concurrent = GRPO_CONFIG.get("gemini_single_call_max_concurrent", 200)
@@ -823,7 +823,7 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
     # --- END ADDED ---
 
     # Use the unified evaluation logic for consistent concurrent evaluation
-    from src.reward_functions.unified_evaluation import evaluate_all_rewards_concurrently
+    from argen.reward_functions.unified_evaluation import evaluate_all_rewards_concurrently
 
     logger.info(f"combined_reward_trl: Using unified evaluation for {len(prompts)} items")
     ahimsa_results, dharma_results, helpfulness_results = run_async_safely(

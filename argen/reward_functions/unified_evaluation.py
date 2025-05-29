@@ -11,9 +11,9 @@ import logging
 import os
 from typing import Dict, List, Tuple, Union
 
-from src.reward_functions.chat_response_helper import process_completions
-from src.utils.data_integrity import extract_tier_from_compound
-from src.config import GRPO_CONFIG
+from argen.reward_functions.chat_response_helper import process_completions
+from argen.utils.data_integrity import extract_tier_from_compound
+from argen.config import GRPO_CONFIG
 
 # Helper function to safely run async functions
 def run_async_safely(coro):
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Import evaluation functions
 try:
-    from src.reward_functions.openai_rewards import (
+    from argen.reward_functions.openai_rewards import (
         evaluate_ahimsa_with_openai,
         evaluate_dharma_with_openai,
         evaluate_helpfulness_with_openai

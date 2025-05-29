@@ -21,14 +21,14 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 try:
-    from src.utils.data_integrity import (
+    from argen.utils.data_integrity import (
         calculate_prompt_hash,
         create_compound_tier,
         _DELIMITER # Import delimiter for checking if already processed
     )
 except ImportError as e:
     print(f"Error importing hashing utilities: {e}")
-    print("Ensure you are running this script from the project root directory or have the 'src' directory in your PYTHONPATH.")
+    print("Ensure you are running this script from the project root directory or have the 'argen' directory in your PYTHONPATH.")
     sys.exit(1)
 
 # Configure logging

@@ -606,11 +606,11 @@ async def batch_evaluate_with_gemini(
         """Evaluate a single prompt-response pair with semaphore control."""
         async with semaphore:
             # Import moved here to break circular dependency
-            from src.reward_functions.gemini.ahimsa import evaluate_ahimsa_with_gemini
+            from argen.reward_functions.gemini.ahimsa import evaluate_ahimsa_with_gemini
             # Import the refactored evaluate_dharma_with_gemini
-            from src.reward_functions.gemini.dharma import evaluate_dharma_with_gemini
+            from argen.reward_functions.gemini.dharma import evaluate_dharma_with_gemini
             # Import the refactored evaluate_helpfulness_with_gemini
-            from src.reward_functions.gemini.helpfulness import evaluate_helpfulness_with_gemini
+            from argen.reward_functions.gemini.helpfulness import evaluate_helpfulness_with_gemini
             # Create tasks for all three evaluations
             ahimsa_task = evaluate_ahimsa_with_gemini(prompt, response, metadata)
             dharma_task = evaluate_dharma_with_gemini(prompt, response, metadata)
@@ -802,7 +802,7 @@ def log_error_handling_stats():
     logger.info(f"Total errors: {GEMINI_ERROR_COUNT} ({error_rate:.2%})")
 
     # Get default score count
-    from src.utils.json_extractor import get_default_score_count
+    from argen.utils.json_extractor import get_default_score_count
     default_score_count = get_default_score_count()
     default_score_rate = default_score_count / total_calls if total_calls > 0 else 0
     logger.info(f"Default score usage: {default_score_count} ({default_score_rate:.2%} of total calls)")

@@ -753,7 +753,7 @@ def main():
 
     # Set reasoning flag if requested
     if args.include_reasoning:
-        from src.reward_functions.gemini_rewards import set_include_reasoning
+        from argen.reward_functions.gemini_rewards import set_include_reasoning
         set_include_reasoning(True)
         print("Reasoning field enabled for evaluation responses.")
 
@@ -874,7 +874,7 @@ def main():
         print("Baseline model evaluation complete!")
 
         if args.evaluator == "gemini":
-            from src.utils.gemini_api_tracker import GeminiAPITracker
+            from argen.utils.gemini_api_tracker import GeminiAPITracker
             tracker = GeminiAPITracker()
             tracker.print_summary()
 

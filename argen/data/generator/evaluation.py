@@ -18,15 +18,15 @@ import importlib.util
 
 # Try to import from the local symbolic link first
 reward_functions_found = False
-local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src/reward_functions/openai_rewards.py")
+local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "argen/reward_functions/openai_rewards.py")
 
 if os.path.exists(local_path):
     log.info(f"Found OpenAI reward functions at {local_path}")
     try:
-        # Add the src directory to sys.path
-        src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
-        if src_dir not in sys.path:
-            sys.path.insert(0, src_dir)
+        # Add the argen directory to sys.path
+        argen_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "argen")
+        if argen_dir not in sys.path:
+            sys.path.insert(0, argen_dir)
 
         # Try to import directly
         try:
@@ -75,7 +75,7 @@ if not reward_functions_found:
         log.info("Successfully imported OpenAI reward functions from parent project")
     except ImportError:
         # If direct import fails, try using importlib
-        parent_path = os.path.join(project_root, "src/reward_functions/openai_rewards.py")
+        parent_path = os.path.join(project_root, "argen/reward_functions/openai_rewards.py")
         if os.path.exists(parent_path):
             try:
                 spec = importlib.util.spec_from_file_location("openai_rewards", parent_path)

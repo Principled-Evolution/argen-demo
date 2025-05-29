@@ -644,12 +644,12 @@ Input Pairs:
     parsed_evaluations = None
     try:
         # Check for control characters before processing
-        from src.reward_functions.gemini_rewards import detect_control_characters
+        from argen.reward_functions.gemini_rewards import detect_control_characters
         if detect_control_characters(gemini_response_text):
             logger.warning(f"Gemini Dharma multi-eval: Control characters detected in response, will sanitize")
 
         # Use centralized JSON extraction
-        from src.utils.json_extractor import extract_json_from_response
+        from argen.utils.json_extractor import extract_json_from_response
         parsed_evaluations, extraction_success = extract_json_from_response(gemini_response_text, "dharma_multi")
 
         if not extraction_success or parsed_evaluations is None:

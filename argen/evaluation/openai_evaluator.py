@@ -943,7 +943,7 @@ async def evaluate_model_with_llm(
         evaluator_info = f"gemini ({GEMINI_EVAL_MODEL})"
 
     # Get scope penalty configuration from the reward functions
-    from src.reward_functions.openai_rewards import SCOPE_PENALTY_TABLE as openai_scope_penalty
+    from argen.reward_functions.openai_rewards import SCOPE_PENALTY_TABLE as openai_scope_penalty
 
     # Create a copy of the scope penalty table for the output
     scope_penalty_config = {f"{k[0]}-{k[1]}": v for k, v in openai_scope_penalty.items()}

@@ -1438,12 +1438,12 @@ def main():
     # Set the include_reasoning flag for Gemini evaluations
     if args.evaluator == "gemini":
         try:
-            from src.reward_functions.trl_rewards import configure_gemini_reasoning
+            from argen.reward_functions.trl_rewards import configure_gemini_reasoning
             configure_gemini_reasoning(args.log_eval_reasoning)
         except ImportError:
             try:
                 # Fallback to direct import if trl_rewards is not available
-                from src.reward_functions.gemini_rewards import set_include_reasoning
+                from argen.reward_functions.gemini_rewards import set_include_reasoning
                 set_include_reasoning(args.log_eval_reasoning)
                 logger.info(f"Set include_reasoning to {args.log_eval_reasoning} for Gemini evaluations")
             except ImportError:
@@ -1533,7 +1533,7 @@ def main():
             eval_dataset = None
 
     # Get GRPO config
-    from src.config import GRPO_CONFIG
+    from argen.config import GRPO_CONFIG
     grpo_config = GRPO_CONFIG
 
     # Override config with command line arguments if provided
@@ -1622,7 +1622,7 @@ def main():
     # Choose reward function based on argument
     if args.use_separate_rewards:
         # Set the environment variable to enable shared evaluation coordinator
-        from src.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
+        from argen.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
         set_separate_rewards_mode(True)
         logger.info("Enabled shared evaluation coordinator for concurrent separate rewards")
 
@@ -1634,7 +1634,7 @@ def main():
         ]
     else:
         # Ensure shared evaluation coordinator is disabled for combined rewards
-        from src.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
+        from argen.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
         set_separate_rewards_mode(False)
 
         reward_funcs = combined_reward_trl
@@ -2000,7 +2000,7 @@ def main():
         logger.info("Non-main process finished training.")
 
     if args.evaluator == "gemini":
-        from src.reward_functions.gemini_rewards import get_gemini_api_call_count
+        from argen.reward_functions.gemini_rewards import get_gemini_api_call_count
         gemini_calls = get_gemini_api_call_count()
         if is_main_process(local_rank=-1):
             print(f"Total Gemini API calls: {gemini_calls}")

@@ -12,10 +12,10 @@ from typing import Any, Dict, List, Optional
 import google.generativeai as genai
 from google.generativeai.types.generation_types import BlockedPromptException
 
-# Imports from src.utils and other project modules
-from src.utils.gemini_response_validator import GeminiHelpfulnessResponse
-from src.utils.gemini_api_wrapper import TrackedGenerativeModel
-from src.config import GEMINI_EVAL_TEMPERATURE
+# Imports from argen.utils and other project modules
+from argen.utils.gemini_response_validator import GeminiHelpfulnessResponse
+from argen.utils.gemini_api_wrapper import TrackedGenerativeModel
+from argen.config import GEMINI_EVAL_TEMPERATURE
 
 # Few-shot examples for helpfulness evaluation
 HELPFULNESS_FEW_SHOT_EXAMPLES = [
@@ -109,7 +109,7 @@ def calculate_and_add_average_helpfulness(evaluation_dict: Dict[str, Any]) -> Di
     return evaluation_dict
 
 # Imports from gemini_rewards (sibling module)
-from src.reward_functions.gemini_rewards import (
+from argen.reward_functions.gemini_rewards import (
     configure_gemini,
     ensure_reasoning_field,
     fallback_to_openai,
@@ -616,7 +616,7 @@ Input Pairs:
     parsed_evaluations = None
     try:
         # Use centralized JSON extraction
-        from src.utils.json_extractor import extract_json_from_response
+        from argen.utils.json_extractor import extract_json_from_response
         parsed_evaluations, extraction_success = extract_json_from_response(gemini_response_text, "helpfulness_multi")
 
         if not extraction_success or parsed_evaluations is None:

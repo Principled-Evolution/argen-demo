@@ -49,7 +49,7 @@ DEFAULT_EVAL_RESPONSE = {
 
 # Calculate helpfulness_score for the default error response
 try:
-    from src.reward_functions.gemini.helpfulness import calculate_and_add_average_helpfulness
+    from argen.reward_functions.gemini.helpfulness import calculate_and_add_average_helpfulness
     DEFAULT_EVAL_RESPONSE = calculate_and_add_average_helpfulness(DEFAULT_EVAL_RESPONSE)
 except ImportError:
     # Fallback if import fails during module loading
@@ -567,7 +567,7 @@ Please evaluate using the specified JSON format.
         required_keys = ["clarity_score", "relevance_score", "completeness_score", "empathy_score", "reasoning"]
         if all(key in evaluation_result for key in required_keys):
              # Import the calculation function
-             from src.reward_functions.gemini.helpfulness import calculate_and_add_average_helpfulness
+             from argen.reward_functions.gemini.helpfulness import calculate_and_add_average_helpfulness
 
              # Calculate the average helpfulness score and add violation flag
              final_result = calculate_and_add_average_helpfulness(evaluation_result)

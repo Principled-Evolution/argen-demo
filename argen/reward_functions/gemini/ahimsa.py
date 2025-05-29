@@ -653,7 +653,7 @@ Please provide your evaluation in the specified JSON format.
             current_user_prompt = user_prompt_content
             if attempt > 0:
                 # Import the helper function
-                from src.reward_functions.gemini_rewards import create_control_character_retry_prompt
+                from argen.reward_functions.gemini_rewards import create_control_character_retry_prompt
                 current_user_prompt = create_control_character_retry_prompt(user_prompt_content, attempt + 1)
 
             # Define a synchronous function to make the Gemini API call
@@ -708,12 +708,12 @@ Please provide your evaluation in the specified JSON format.
         if content:
             try:
                 # Check for control characters before processing
-                from src.reward_functions.gemini_rewards import detect_control_characters
+                from argen.reward_functions.gemini_rewards import detect_control_characters
                 if detect_control_characters(content):
                     logger.warning(f"Gemini Ahimsa attempt {attempt + 1}: Control characters detected in response, will sanitize")
 
                 # Use centralized JSON extraction
-                from src.utils.json_extractor import extract_json_from_response
+                from argen.utils.json_extractor import extract_json_from_response
                 evaluation_result, extraction_success = extract_json_from_response(content, "ahimsa")
 
                 if not extraction_success or evaluation_result is None:

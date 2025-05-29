@@ -153,7 +153,7 @@ class SharedEvaluationCoordinator:
         """
         try:
             # Import the unified evaluation function
-            from src.reward_functions.unified_evaluation import evaluate_all_rewards_concurrently
+            from argen.reward_functions.unified_evaluation import evaluate_all_rewards_concurrently
 
             logger.info(f"SharedEvaluationCoordinator: Running concurrent evaluation for {len(prompts)} items")
 
@@ -240,8 +240,8 @@ class SharedEvaluationCoordinator:
             if batch_id not in self._evaluation_results:
                 return
 
-            from src.reward_functions.trl_rewards import populate_audit_log_data
-            from src.reward_functions.chat_response_helper import process_completions
+            from argen.reward_functions.trl_rewards import populate_audit_log_data
+            from argen.reward_functions.chat_response_helper import process_completions
 
             # Get the cached results
             results = self._evaluation_results[batch_id]
