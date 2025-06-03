@@ -119,6 +119,33 @@ def parse_arguments():
         help="Batch size for local model generation (higher = faster but more GPU memory required)"
     )
 
+    # Weave integration arguments
+    parser.add_argument(
+        "--use-weave",
+        action="store_true",
+        help="Enable WANDB Weave integration for enhanced evaluation tracking"
+    )
+    parser.add_argument(
+        "--weave-project",
+        type=str,
+        help="WANDB Weave project name (defaults to 'argen-evaluations')"
+    )
+    parser.add_argument(
+        "--weave-evaluation-name",
+        type=str,
+        help="Custom name for the Weave evaluation"
+    )
+    parser.add_argument(
+        "--weave-only",
+        action="store_true",
+        help="Use only Weave evaluation (skip traditional JSON output)"
+    )
+    parser.add_argument(
+        "--weave-display-name",
+        type=str,
+        help="Custom display name for the Weave evaluation run"
+    )
+
     return parser.parse_args()
 
 
@@ -536,6 +563,35 @@ def generate_summary_table(metrics_list: List[Dict[str, Any]]) -> str:
 def main():
     """Run the multi-model evaluation script."""
     args = parse_arguments()
+
+    # Check for Weave integration
+    weave_enabled = args.use_weave or args.weave_only
+    weave_manager = None
+
+    if weave_enabled:
+        try:
+            from argen.evaluation.weave_integration import WeaveEvaluationManager
+            from argen.config_weave import is_weave_enabled
+
+            if not is_weave_enabled():
+                print("Warning: Weave is not available. Install with: poetry install -E weave")
+                if args.weave_only:
+                    print("Error: --weave-only specified but Weave is not available")
+                    return 1
+                print("Falling back to traditional evaluation...")
+                weave_enabled = False
+            else:
+                print("Weave integration enabled")
+                weave_manager = WeaveEvaluationManager(
+                    project_name=args.weave_project
+                )
+        except ImportError as e:
+            print(f"Warning: Failed to import Weave integration: {e}")
+            if args.weave_only:
+                print("Error: --weave-only specified but Weave integration failed")
+                return 1
+            print("Falling back to traditional evaluation...")
+            weave_enabled = False
 
     # Create output directory
     output_dir = create_output_directory()

@@ -63,6 +63,10 @@ WANDB_LOG_TABLES = False          # Disable table/completion logging to wandb
 WANDB_LOG_DEBUG = False           # Disable debug logging to wandb
 WANDB_METRICS_ONLY = True         # Only send metrics, not logs
 
+# Weave integration control
+WEAVE_INTEGRATION_ENABLED = False  # Enable Weave integration by default
+WEAVE_FALLBACK_ON_ERROR = True     # Fallback to traditional evaluation on Weave errors
+
 # Penalty configuration for evaluations
 PENALTY_CONFIG = {
     # blanket disclaimer penalty permanently disabled
