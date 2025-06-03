@@ -167,8 +167,8 @@ from transformers.trainer_callback import EarlyStoppingCallback
 import numpy as np
 from datasets import Dataset, load_dataset
 
-from src.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
-from src.config import (
+from argen.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
+from argen.config import (
     DEFAULT_MODEL_ID,
     DEFAULT_SCENARIOS_PATH,
     DEFAULT_VALIDATION_SCENARIOS_PATH,
@@ -182,15 +182,15 @@ from src.config import (
     WANDB_LOG_DEBUG,
     WANDB_METRICS_ONLY
 )
-from src.reward_functions.trl_rewards import (
+from argen.reward_functions.trl_rewards import (
     ahimsa_reward_trl,
     dharma_reward_trl,
     combined_reward_trl,
     helpfulness_reward_trl,
 )
 # CRITICAL FIX: Import the module itself to get the exact same reference
-import src.reward_functions.trl_rewards as trl_rewards_module
-from src.callbacks.adaptive_weights import MeanAdaptiveWeights
+import argen.reward_functions.trl_rewards as trl_rewards_module
+from argen.training.callbacks.adaptive_weights import MeanAdaptiveWeights
 from examples.evaluate_trained_model import perform_evaluation
 
 # Enhanced metrics tracking
@@ -312,10 +312,10 @@ reset_logging_config()
 
 # --- ADDED: Import hash verification utility ---
 try:
-    from src.utils.data_integrity import verify_prompt_tier_hash, _DELIMITER
+    from argen.utils.data_integrity import verify_prompt_tier_hash, _DELIMITER
 except ImportError as e:
     print(f"Error importing hashing utilities: {e}")
-    print("Ensure you are running this script from the project root directory or have the 'src' directory in your PYTHONPATH.")
+    print("Ensure you are running this script from the project root directory or have the 'argen' directory in your PYTHONPATH.")
     sys.exit(1)
 # --- END ADDED ---
 
@@ -1438,12 +1438,12 @@ def main():
     # Set the include_reasoning flag for Gemini evaluations
     if args.evaluator == "gemini":
         try:
-            from src.reward_functions.trl_rewards import configure_gemini_reasoning
+            from argen.reward_functions.trl_rewards import configure_gemini_reasoning
             configure_gemini_reasoning(args.log_eval_reasoning)
         except ImportError:
             try:
                 # Fallback to direct import if trl_rewards is not available
-                from src.reward_functions.gemini_rewards import set_include_reasoning
+                from argen.reward_functions.gemini_rewards import set_include_reasoning
                 set_include_reasoning(args.log_eval_reasoning)
                 logger.info(f"Set include_reasoning to {args.log_eval_reasoning} for Gemini evaluations")
             except ImportError:
@@ -1533,7 +1533,7 @@ def main():
             eval_dataset = None
 
     # Get GRPO config
-    from src.config import GRPO_CONFIG
+    from argen.config import GRPO_CONFIG
     grpo_config = GRPO_CONFIG
 
     # Override config with command line arguments if provided
@@ -1622,7 +1622,7 @@ def main():
     # Choose reward function based on argument
     if args.use_separate_rewards:
         # Set the environment variable to enable shared evaluation coordinator
-        from src.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
+        from argen.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
         set_separate_rewards_mode(True)
         logger.info("Enabled shared evaluation coordinator for concurrent separate rewards")
 
@@ -1634,7 +1634,7 @@ def main():
         ]
     else:
         # Ensure shared evaluation coordinator is disabled for combined rewards
-        from src.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
+        from argen.reward_functions.shared_evaluation_coordinator import set_separate_rewards_mode
         set_separate_rewards_mode(False)
 
         reward_funcs = combined_reward_trl
@@ -1804,20 +1804,14 @@ def main():
     logging.basicConfig = wrapped_basicConfig
 
     trainer_class = GRPOTrainer
-    try:
-        from fix_grpo_chat_template import extract_content_from_chat_response
+    # Import the chat response helper function from the proper module
+    from argen.reward_functions.chat_response_helper import extract_content_from_chat_response
 
-        # Log an example of content extraction if verbose logging is enabled
-        if args.verbose_logging:
-            example_response = {"role": "assistant", "content": "This is a test response"}
-            extracted = extract_content_from_chat_response(example_response)
-            logger.info(f"Example content extraction: {extracted}")
-    except ImportError:
-        # Define a simple extract_content function if the imported one is not available
-        def extract_content_from_chat_response(response):
-            if isinstance(response, dict) and 'content' in response:
-                return response['content']
-            return response
+    # Log an example of content extraction if verbose logging is enabled
+    if args.verbose_logging:
+        example_response = {"role": "assistant", "content": "This is a test response"}
+        extracted = extract_content_from_chat_response(example_response)
+        logger.info(f"Example content extraction: {extracted}")
 
     # Wrap reward functions with verbose logging if enabled
     if args.verbose_logging:
@@ -2006,7 +2000,7 @@ def main():
         logger.info("Non-main process finished training.")
 
     if args.evaluator == "gemini":
-        from src.reward_functions.gemini_rewards import get_gemini_api_call_count
+        from argen.reward_functions.gemini_rewards import get_gemini_api_call_count
         gemini_calls = get_gemini_api_call_count()
         if is_main_process(local_rank=-1):
             print(f"Total Gemini API calls: {gemini_calls}")
