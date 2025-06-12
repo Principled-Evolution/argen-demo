@@ -4,7 +4,7 @@ LLM-based evaluator for ArGen fine-tuning.
 This module provides functions to evaluate a model using LLM APIs (OpenAI, Gemini, etc.)
 for Ahimsa, Dharma, and Helpfulness principles.
 
-Note: This file will be renamed to llm_evaluator.py to reflect its multi-provider nature.
+This is the main evaluation module that supports multiple LLM providers.
 """
 
 import os

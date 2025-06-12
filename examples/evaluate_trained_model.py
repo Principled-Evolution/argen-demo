@@ -16,7 +16,7 @@ import logging
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from argen.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
-from argen.evaluation.openai_evaluator import evaluate_model_with_llm, evaluate_model_with_openai
+from argen.evaluation.llm_evaluator import evaluate_model_with_llm, evaluate_model_with_openai
 from argen.config import DEFAULT_SCENARIOS_PATH, DEFAULT_TEMPERATURE, PENALTY_CONFIG
 
 # Set up logger for this module (optional but good practice)

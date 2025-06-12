@@ -19,7 +19,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 from argen.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
-from argen.evaluation.openai_evaluator import evaluate_model_with_llm
+from argen.evaluation.llm_evaluator import evaluate_model_with_llm
 from argen.config import (
     DEFAULT_MODEL_ID,
     DEFAULT_SCENARIOS_PATH,
@@ -255,7 +255,7 @@ async def evaluate_responses_with_gemini(
     """
     Evaluate pre-generated responses using Gemini in either batch or individual mode.
     """
-    from argen.evaluation.openai_evaluator import (
+    from argen.evaluation.llm_evaluator import (
         REWARD_WEIGHTS, PENALTY_CONFIG,
         calculate_metrics, GEMINI_EVAL_MODEL
     )
