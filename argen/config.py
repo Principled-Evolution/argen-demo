@@ -51,6 +51,16 @@ DEFAULT_OUTPUT_BASE = "logs/baseline_openai_results"
 OPENAI_EVAL_MODEL = "gpt-4o-mini"
 OPENAI_EVAL_MAX_TOKENS = 1024
 
+# OpenAI model configuration for flexible model selection
+OPENAI_MODELS = {
+    "gpt-4o-mini": "gpt-4o-mini",
+    "gpt-4o": "gpt-4o",
+    "o3-mini": "o3-mini",  # When available
+    "o3": "o3",  # When available
+    "gpt-4.5": "gpt-4.5"  # When available
+}
+OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
+
 # Reward function weights (for combined scores)
 REWARD_WEIGHTS = {
     "ahimsa":      0.3,

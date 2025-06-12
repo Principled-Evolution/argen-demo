@@ -12,6 +12,7 @@ from typing import Dict, Optional, Tuple, List, Any
 from openai import AsyncOpenAI, RateLimitError, APIError, OpenAIError
 from argen.penalty_config import PENALTY_CONFIG
 from argen.scope_definitions import SCOPE_SYSTEM_PROMPT, SCOPE_PENALTY_TABLE, scope_penalty, get_scope_prompt_for_text
+from argen.config import OPENAI_DEFAULT_MODEL, OPENAI_EVAL_TEMPERATURE, OPENAI_EVAL_MAX_TOKENS
 
 # Remove unused imports related to the old client initialization
 # from src.utils.env import load_env_vars, get_openai_api_key
@@ -63,7 +64,8 @@ async def evaluate_ahimsa_with_openai(
     original_prompt: str,
     model_response: str,
     openai_api_key: Optional[str],
-    original_prompt_meta: Optional[Dict[str, Any]] = None
+    original_prompt_meta: Optional[Dict[str, Any]] = None,
+    model_name: Optional[str] = None
 ) -> Dict:
     """
     Evaluates a model response for Ahimsa (non-harm) using OpenAI API (asynchronously).
@@ -82,6 +84,9 @@ async def evaluate_ahimsa_with_openai(
     if not openai_api_key:
         logger.error("OpenAI API key not provided for Ahimsa evaluation.")
         return {**DEFAULT_EVAL_RESPONSE, "error": "API Key Missing"}
+
+    # Determine model to use
+    model = model_name or OPENAI_DEFAULT_MODEL
 
     try:
         client = AsyncOpenAI(api_key=openai_api_key)
@@ -155,11 +160,11 @@ Please provide your evaluation in the specified JSON format.
     for attempt in range(max_retries):
         try:
             response = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=model,
                 messages=messages,
                 response_format={"type": "json_object"},
-                temperature=0.2,
-                max_tokens=500
+                temperature=OPENAI_EVAL_TEMPERATURE,
+                max_tokens=OPENAI_EVAL_MAX_TOKENS
             )
             content = response.choices[0].message.content
             if content:
@@ -281,7 +286,8 @@ async def evaluate_dharma_with_openai(
     original_prompt: str,
     model_response: str,
     openai_api_key: Optional[str],
-    original_prompt_meta: Optional[Dict[str, Any]] = None
+    original_prompt_meta: Optional[Dict[str, Any]] = None,
+    model_name: Optional[str] = None
 ) -> Dict:
     """
     Evaluates a model response for Dharma (domain adherence) using OpenAI API (asynchronously).
@@ -300,6 +306,9 @@ async def evaluate_dharma_with_openai(
     if not openai_api_key:
         logger.error("OpenAI API key not provided for Dharma evaluation.")
         return {**DEFAULT_EVAL_RESPONSE, "error": "API Key Missing"}
+    # Determine model to use
+    model = model_name or OPENAI_DEFAULT_MODEL
+
 
     try:
         client = AsyncOpenAI(api_key=openai_api_key)
@@ -361,11 +370,11 @@ async def evaluate_dharma_with_openai(
     for attempt in range(max_retries):
         try:
             response = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=model,
                 messages=messages,
                 response_format={"type": "json_object"},
-                temperature=0.2,
-                max_tokens=500
+                temperature=OPENAI_EVAL_TEMPERATURE,
+                max_tokens=OPENAI_EVAL_MAX_TOKENS
             )
             content = response.choices[0].message.content
             if content:
@@ -462,7 +471,7 @@ async def evaluate_dharma_with_openai(
         return DEFAULT_EVAL_RESPONSE
 
 # --- Helpfulness Evaluation ---
-async def evaluate_helpfulness_with_openai(original_prompt: str, model_response: str, openai_api_key: Optional[str]) -> Dict:
+async def evaluate_helpfulness_with_openai(original_prompt: str, model_response: str, openai_api_key: Optional[str], model_name: Optional[str] = None) -> Dict:
     """
     Evaluates a model response for Helpfulness (Karuna) using OpenAI API.
 
@@ -477,6 +486,9 @@ async def evaluate_helpfulness_with_openai(original_prompt: str, model_response:
     if not openai_api_key:
         logger.error("OpenAI API key not provided for Helpfulness evaluation.")
         return {**DEFAULT_EVAL_RESPONSE, "error": "API Key Missing"}
+    # Determine model to use
+    model = model_name or OPENAI_DEFAULT_MODEL
+
 
     try:
         client = AsyncOpenAI(api_key=openai_api_key)
@@ -530,11 +542,11 @@ Please evaluate using the specified JSON format.
     for attempt in range(max_retries):
         try:
             response = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=model,
                 messages=messages,
                 response_format={"type": "json_object"},
-                temperature=0.2,
-                max_tokens=500
+                temperature=OPENAI_EVAL_TEMPERATURE,
+                max_tokens=OPENAI_EVAL_MAX_TOKENS
             )
             content = response.choices[0].message.content
             if content:
@@ -589,7 +601,8 @@ async def batch_evaluate_with_openai(
     responses: List[str],
     openai_api_key: Optional[str],
     max_concurrency: int = 50,
-    metadata_list: Optional[List[Dict]] = None
+    metadata_list: Optional[List[Dict]] = None,
+    model_name: Optional[str] = None,
 ) -> List[Dict]:
     """
     Batch evaluate multiple prompt-response pairs with OpenAI API.
@@ -622,9 +635,9 @@ async def batch_evaluate_with_openai(
         """Evaluate a single prompt-response pair with semaphore control."""
         async with semaphore:
             # Create tasks for all three evaluations
-            ahimsa_task = evaluate_ahimsa_with_openai(prompt, response, openai_api_key, metadata)
-            dharma_task = evaluate_dharma_with_openai(prompt, response, openai_api_key, metadata)
-            helpfulness_task = evaluate_helpfulness_with_openai(prompt, response, openai_api_key)
+            ahimsa_task = evaluate_ahimsa_with_openai(prompt, response, openai_api_key, metadata, model_name)
+            dharma_task = evaluate_dharma_with_openai(prompt, response, openai_api_key, metadata, model_name)
+            helpfulness_task = evaluate_helpfulness_with_openai(prompt, response, openai_api_key, model_name)
 
             # Run all three evaluations concurrently
             results = await asyncio.gather(
