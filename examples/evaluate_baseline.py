@@ -18,8 +18,8 @@ import time
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from argen.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key
-from argen.evaluation.openai_evaluator import evaluate_model_with_llm
+from argen.utils.env import load_env_vars, get_openai_api_key, get_gemini_api_key, get_anthropic_api_key
+from argen.evaluation.llm_evaluator import evaluate_model_with_llm
 from argen.config import (
     DEFAULT_MODEL_ID,
     DEFAULT_SCENARIOS_PATH,
@@ -507,6 +507,7 @@ async def run_comparison_mode(
         temperature=temperature,
         openai_api_key=openai_api_key,
         gemini_api_key=gemini_api_key,
+        anthropic_api_key=None,  # Not used in comparison mode
         evaluator="gemini",
         test_mode=test_mode,
         system_prompt_type=system_prompt_type,
@@ -514,7 +515,10 @@ async def run_comparison_mode(
         apply_professional_referral_penalty=apply_professional_referral_penalty,
         generation_batch_size=generation_batch_size,
         gemini_eval_mode="batch",  # Use batch mode for generation
-        skip_evaluation=True  # New parameter to skip evaluation phase
+        skip_evaluation=True,  # New parameter to skip evaluation phase
+        openai_model=None,      # Not used in comparison mode
+        anthropic_model=None,   # Not used in comparison mode
+        gemini_model=None       # Use default for comparison mode
     )
 
     generation_end_time = time.time()
@@ -708,9 +712,9 @@ def main():
     parser.add_argument(
         "--evaluator",
         type=str,
-        choices=["openai", "gemini"],
+        choices=["openai", "gemini", "anthropic"],  # Add anthropic
         default="gemini",
-        help="Which LLM to use for evaluation (openai or gemini)"
+        help="Which LLM provider to use for evaluation"
     )
     parser.add_argument(
         "--compare-eval-modes",
@@ -734,6 +738,28 @@ def main():
         type=int,
         default=50,
         help="Batch size for local model generation (higher = faster but more GPU memory required)"
+    )
+
+    # Add model selection per provider
+    parser.add_argument(
+        "--openai-model",
+        type=str,
+        default="gpt-4o-mini",
+        help="OpenAI model to use for evaluation (e.g., gpt-4o-mini, gpt-4o, o3-mini)"
+    )
+
+    parser.add_argument(
+        "--anthropic-model",
+        type=str,
+        default="claude-3-5-sonnet",
+        help="Anthropic model to use for evaluation (e.g., claude-3-5-sonnet, claude-3-opus)"
+    )
+
+    parser.add_argument(
+        "--gemini-model",
+        type=str,
+        default="gemini-2.0-flash",
+        help="Gemini model to use for evaluation"
     )
 
     args = parser.parse_args()
@@ -760,11 +786,17 @@ def main():
     # Get the appropriate API key based on the evaluator
     openai_api_key = None
     gemini_api_key = None
+    anthropic_api_key = None
 
     if args.evaluator == "openai":
         openai_api_key = get_openai_api_key()
         if not openai_api_key:
             print("Error: OPENAI_API_KEY not found. Please set it in your .env file or environment.")
+            sys.exit(1)
+    elif args.evaluator == "anthropic":
+        anthropic_api_key = get_anthropic_api_key()
+        if not anthropic_api_key:
+            print("Error: ANTHROPIC_API_KEY not found. Please set it in your .env file or environment.")
             sys.exit(1)
     else:  # args.evaluator == "gemini"
         try:
@@ -862,13 +894,17 @@ def main():
             temperature=args.temperature,
             openai_api_key=openai_api_key,
             gemini_api_key=gemini_api_key,
+            anthropic_api_key=anthropic_api_key,  # Add Anthropic API key
             evaluator=args.evaluator,
             test_mode=args.test,
             system_prompt_type=args.system_prompt,
             apply_medical_disclaimer_penalty=apply_medical_disclaimer_penalty,
             apply_professional_referral_penalty=apply_professional_referral_penalty,
             generation_batch_size=args.generation_batch_size,
-            gemini_eval_mode=args.eval_mode
+            gemini_eval_mode=args.eval_mode,
+            openai_model=getattr(args, 'openai_model', None),      # Add model selection
+            anthropic_model=getattr(args, 'anthropic_model', None), # Add model selection
+            gemini_model=getattr(args, 'gemini_model', None)       # Add model selection
         ))
 
         print("Baseline model evaluation complete!")

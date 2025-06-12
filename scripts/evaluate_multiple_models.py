@@ -51,9 +51,9 @@ def parse_arguments():
     parser.add_argument(
         "--evaluator",
         type=str,
-        choices=["openai", "gemini"],
+        choices=["openai", "gemini", "anthropic"],  # Add anthropic
         default="gemini",
-        help="Which LLM to use for evaluation (openai or gemini)"
+        help="Which LLM provider to use for evaluation"
     )
     parser.add_argument(
         "--temperature",
@@ -119,6 +119,28 @@ def parse_arguments():
         help="Batch size for local model generation (higher = faster but more GPU memory required)"
     )
 
+    # Add model selection per provider
+    parser.add_argument(
+        "--openai-model",
+        type=str,
+        default="gpt-4o-mini",
+        help="OpenAI model to use for evaluation (e.g., gpt-4o-mini, gpt-4o, o3-mini)"
+    )
+
+    parser.add_argument(
+        "--anthropic-model",
+        type=str,
+        default="claude-3-5-sonnet",
+        help="Anthropic model to use for evaluation (e.g., claude-3-5-sonnet, claude-3-opus)"
+    )
+
+    parser.add_argument(
+        "--gemini-model",
+        type=str,
+        default="gemini-2.0-flash",
+        help="Gemini model to use for evaluation"
+    )
+
     return parser.parse_args()
 
 
@@ -175,7 +197,10 @@ def evaluate_model(
     test: bool,
     eval_mode: str,
     generation_batch_size: int,
-    gpu_id: int = None
+    gpu_id: int = None,
+    openai_model: str = None,
+    anthropic_model: str = None,
+    gemini_model: str = None
 ) -> tuple:
     """
     Evaluate a single model using examples/evaluate_baseline.py.
@@ -212,6 +237,14 @@ def evaluate_model(
         "--eval-mode", eval_mode,
         "--generation_batch_size", str(generation_batch_size)
     ]
+
+    # Add model selection parameters
+    if openai_model:
+        cmd.extend(["--openai-model", openai_model])
+    if anthropic_model:
+        cmd.extend(["--anthropic-model", anthropic_model])
+    if gemini_model:
+        cmd.extend(["--gemini-model", gemini_model])
 
     if no_medical_disclaimer_penalty:
         cmd.append("--no_medical_disclaimer_penalty")
@@ -260,7 +293,8 @@ def evaluate_model_on_gpu(args):
     Args:
         args: Tuple of (model, scenarios, output_dir, evaluator, temperature,
               system_prompt, no_medical_disclaimer_penalty, no_referral_penalty,
-              test, eval_mode, generation_batch_size, gpu_id)
+              test, eval_mode, generation_batch_size, gpu_id, openai_model,
+              anthropic_model, gemini_model)
 
     Returns:
         tuple: (output_file_path, original_model_name) or (None, None) on failure
@@ -291,7 +325,10 @@ class ModelEvaluationManager:
                  eval_mode: str,
                  generation_batch_size: int,
                  pipeline_delay: int = 10,
-                 max_concurrent_models: int = None):
+                 max_concurrent_models: int = None,
+                 openai_model: str = None,
+                 anthropic_model: str = None,
+                 gemini_model: str = None):
         """
         Initialize the evaluation manager.
 
@@ -322,6 +359,9 @@ class ModelEvaluationManager:
         self.eval_mode = eval_mode
         self.generation_batch_size = generation_batch_size
         self.pipeline_delay = pipeline_delay
+        self.openai_model = openai_model
+        self.anthropic_model = anthropic_model
+        self.gemini_model = gemini_model
 
         # Detect available GPUs
         self.num_gpus = get_cuda_device_count()
@@ -371,6 +411,14 @@ class ModelEvaluationManager:
             "--eval-mode", self.eval_mode,
             "--generation_batch_size", str(self.generation_batch_size)
         ]
+
+        # Add model selection parameters
+        if self.openai_model:
+            cmd.extend(["--openai-model", self.openai_model])
+        if self.anthropic_model:
+            cmd.extend(["--anthropic-model", self.anthropic_model])
+        if self.gemini_model:
+            cmd.extend(["--gemini-model", self.gemini_model])
 
         if self.no_medical_disclaimer_penalty:
             cmd.append("--no_medical_disclaimer_penalty")
@@ -568,7 +616,10 @@ def main():
             eval_mode=args.eval_mode,
             generation_batch_size=args.generation_batch_size,
             pipeline_delay=args.pipeline_delay,
-            max_concurrent_models=args.max_concurrent_models
+            max_concurrent_models=args.max_concurrent_models,
+            openai_model=getattr(args, 'openai_model', None),
+            anthropic_model=getattr(args, 'anthropic_model', None),
+            gemini_model=getattr(args, 'gemini_model', None)
         )
 
         # Run the pipeline and get results
@@ -597,7 +648,10 @@ def main():
                 args.test,
                 args.eval_mode,
                 args.generation_batch_size,
-                gpu_id
+                gpu_id,
+                getattr(args, 'openai_model', None),
+                getattr(args, 'anthropic_model', None),
+                getattr(args, 'gemini_model', None)
             ))
 
         # Run evaluations in parallel
@@ -630,7 +684,10 @@ def main():
                 no_referral_penalty=args.no_referral_penalty,
                 test=args.test,
                 eval_mode=args.eval_mode,
-                generation_batch_size=args.generation_batch_size
+                generation_batch_size=args.generation_batch_size,
+                openai_model=getattr(args, 'openai_model', None),
+                anthropic_model=getattr(args, 'anthropic_model', None),
+                gemini_model=getattr(args, 'gemini_model', None)
             )
 
             if result[0]:  # If output_file is not None
