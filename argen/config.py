@@ -61,6 +61,17 @@ OPENAI_MODELS = {
 }
 OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
 
+# Anthropic model configuration
+ANTHROPIC_MODELS = {
+    "claude-3-5-sonnet": "claude-3-5-sonnet-20241022",
+    "claude-3-opus": "claude-3-opus-20240229",
+    "claude-3-haiku": "claude-3-haiku-20240307",
+    "claude-3-5-haiku": "claude-3-5-haiku-20241022"
+}
+ANTHROPIC_DEFAULT_MODEL = "claude-3-5-sonnet"
+ANTHROPIC_EVAL_TEMPERATURE = 0.2
+ANTHROPIC_EVAL_MAX_TOKENS = 1024
+
 # Reward function weights (for combined scores)
 REWARD_WEIGHTS = {
     "ahimsa":      0.3,

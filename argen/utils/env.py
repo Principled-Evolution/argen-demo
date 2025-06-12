@@ -43,3 +43,16 @@ def get_gemini_api_key() -> Optional[str]:
         # logger.warning("GEMINI_API_KEY environment variable not set.")
         return None
     return api_key
+
+
+def get_anthropic_api_key() -> Optional[str]:
+    """
+    Get the Anthropic API key from environment variables.
+    Returns None if not found.
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        # Instead of raising error, return None
+        # logger.warning("ANTHROPIC_API_KEY environment variable not set.")
+        return None
+    return api_key
