@@ -4,7 +4,7 @@ This repository provides an open-source implementation of the ArGen framework's 
 
 ## Overview
 
-The ArGen framework, as described in the paper "AI in the Gita's Field: The ArGen Framework for Culturally-Grounded AGI Alignment," proposes a culturally-grounded approach to AI alignment. This implementation focuses on the practical application of Dharmic principles through GRPO fine-tuning using the Predibase platform, with a specific focus on healthcare scenarios.
+The ArGen framework, as described in the paper "AI in the Gita's Field: The ArGen Framework for Culturally-Grounded AGI Alignment," proposes a culturally-grounded approach to AI alignment. This implementation focuses on the practical application of Dharmic principles through GRPO fine-tuning with a specific focus on healthcare scenarios.
 
 The project includes:
 
@@ -12,7 +12,7 @@ The project includes:
   - **Ahimsa (Non-harm)**: Ensures the agent doesn't provide harmful medical advice
   - **Dharma (Professional Duty)**: Ensures the agent stays within its healthcare domain
 - Comprehensive datasets with challenging healthcare scenarios and domain violation scenarios
-- Integration with Predibase for GRPO fine-tuning
+- Local GRPO fine-tuning implementation
 - Policy enforcement using OPA with Rego policies
 - Comprehensive evaluation framework for comparing baseline and fine-tuned models
 - Integration with GOPAL policy structure through a submodule
@@ -21,8 +21,7 @@ The project includes:
 
 - Python 3.8+
 - [Open Policy Agent (OPA)](https://www.openpolicyagent.org/docs/latest/#running-opa) for policy enforcement
-- Predibase account with access to Reinforcement Fine-Tuning (RFT) capabilities
-- Predibase SDK (`pip install predibase`)
+- PyTorch and Transformers library for local model training
 
 ## Installation
 
@@ -51,7 +50,7 @@ This will create several datasets:
 - `data/domain_scenarios.jsonl`: Domain violation scenarios (Dharma principle)
 - `data/combined_scenarios.jsonl`: Combined scenarios for comprehensive evaluation
 - `data/combined_evaluation.jsonl`: Scenarios formatted for evaluation
-- `data/combined_predibase.jsonl`: Scenarios formatted for Predibase
+- `data/combined_training.jsonl`: Scenarios formatted for training
 
 ### 2. Evaluate the Baseline Model
 
@@ -64,15 +63,15 @@ This will evaluate the baseline model on both Ahimsa and Dharma principles and s
 ### 3. Run GRPO Fine-tuning
 
 ```bash
-python examples/run_comprehensive_grpo_finetuning.py --model llama-3-2-1b-instruct --dataset combined_predibase --repo argen-comprehensive
+python examples/train_grpo.py --model llama-3-2-1b-instruct --dataset combined_training
 ```
 
-This will submit a GRPO fine-tuning job to Predibase using both Ahimsa and Dharma reward functions. You'll need to have the Predibase SDK set up with your credentials.
+This will run local GRPO fine-tuning using both Ahimsa and Dharma reward functions.
 
 ### 4. Evaluate the Fine-tuned Model
 
 ```bash
-python examples/evaluate_finetuned_comprehensive.py --model your-predibase-model-name
+python examples/evaluate_baseline.py --model path/to/your/fine-tuned-model
 ```
 
 This will evaluate the fine-tuned model on both Ahimsa and Dharma principles and compare the results with the baseline.
@@ -84,12 +83,12 @@ argen-demo/
 ├── data/                      # Datasets and evaluation results
 ├── examples/                  # Example scripts
 ├── gopal/                     # GOPAL submodule with Dharmic principles
-├── src/                       # Source code
-│   ├── data_utils/            # Dataset utilities
-│   ├── predibase/             # Predibase integration
+├── argen/                     # Source code
+│   ├── data/                  # Dataset utilities
 │   ├── reward_functions/      # Reward functions for GRPO
-│   ├── environment.py         # Environment for policy enforcement
-│   └── evaluate_model.py      # Model evaluation utilities
+│   ├── training/              # Training utilities
+│   ├── evaluation/            # Model evaluation utilities
+│   └── utils/                 # Utility functions
 ├── tests/                     # Unit tests
 ├── README.md                  # This file
 └── requirements.txt           # Python dependencies
@@ -155,5 +154,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - The ArGen framework for providing the conceptual foundation
-- Predibase for their GRPO implementation
+- The TRL library for GRPO implementation
 - The GOPAL repository for policy structure inspiration

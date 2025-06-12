@@ -43,7 +43,7 @@ ENHANCED_SYSTEM_PROMPT = (
 )
 
 # Dataset paths
-DEFAULT_SCENARIOS_PATH = "data/combined_predibase_updated.jsonl"
+DEFAULT_SCENARIOS_PATH = "data/combined_training_updated.jsonl"
 DEFAULT_VALIDATION_SCENARIOS_PATH = "data/final-2025-05-08/benchmarking_20250507_174208-reevaluated-tiers.jsonl"
 DEFAULT_OUTPUT_BASE = "logs/baseline_openai_results"
 

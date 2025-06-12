@@ -1,4 +1,4 @@
-Great — I’ll create a lean yet credible demo implementation plan for ArGen that leverages hosted GRPO training via Predibase and integrates a minimal OPA ethics check to showcase the architecture in action.
+Great — I’ll create a lean yet credible demo implementation plan for ArGen that leverages local GRPO training and integrates a minimal OPA ethics check to showcase the architecture in action.
 
 The demo will prioritize simplicity but still demonstrate the learning loop and policy filtering dynamic discussed in the paper. I’ll outline the PRD, repo structure, tooling stack, key implementation snippets, and a milestone-based next-step plan.
 

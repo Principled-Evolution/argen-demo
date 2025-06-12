@@ -14,7 +14,7 @@ Usage:
   python commands/process_data.py input_file.jsonl
 
 Example:
-  python commands/process_data.py data/combined_predibase_updated.jsonl
+  python commands/process_data.py data/combined_training_updated.jsonl
 """
 
 import argparse

@@ -56,97 +56,7 @@ def calculate_metrics(results: List[Dict]) -> Dict:
     }
 
 
-def generate_model_response(
-    model_name: str,
-    prompt: str,
-    temperature: float = 0.9,
-    api_token: Optional[str] = None,
-    tenant_id: str = "default",
-    max_retries: int = 3,
-    retry_delay: float = 2.0
-) -> str:
-    """
-    Generate a response from a model using Predibase with retry logic.
 
-    Args:
-        model_name: Name of the model to use
-        prompt: Prompt to send to the model (formatted by caller)
-        temperature: Temperature for generation
-        api_token: Predibase API token
-        tenant_id: Predibase tenant ID
-        max_retries: Maximum number of times to retry the API call
-        retry_delay: Delay in seconds between retries
-
-    Returns:
-        The model's response, or an error string if all retries fail.
-    """
-
-    last_error = None
-
-    for attempt in range(max_retries):
-        current_api_token = api_token
-        if current_api_token is None:
-            try:
-                config_path = os.path.expanduser("~/.predibase/config.json")
-                if os.path.exists(config_path):
-                    with open(config_path, 'r') as f:
-                        config = json.load(f)
-                    current_api_token = config.get("api_key")
-                if not current_api_token:
-                    current_api_token = os.getenv("PREDIBASE_API_TOKEN")
-                if not current_api_token:
-                     raise ValueError("Predibase API token not found in config file or PREDIBASE_API_TOKEN environment variable.")
-            except Exception as e:
-                last_error = f"Error getting API token: {str(e)}"
-                if attempt < max_retries - 1:
-                    print(f"Attempt {attempt + 1} failed to get API token: {e}. Retrying in {retry_delay}s...")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    return last_error
-
-        url = f"https://serving.app.predibase.com/{tenant_id}/deployments/v2/llms/{model_name}/generate"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {current_api_token}"
-        }
-        data = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 512,
-                "temperature": temperature,
-                "do_sample": True
-            }
-        }
-
-        try:
-            import requests
-            response_obj = requests.post(url, headers=headers, json=data, timeout=60)
-            response_obj.raise_for_status()
-            response_data = response_obj.json()
-            response = response_data.get("generated_text", "")
-
-            if not response:
-                 raise ValueError("Received empty response from API")
-
-            if response.startswith(prompt):
-                 response = response[len(prompt):]
-
-            return response.strip()
-
-        except requests.exceptions.RequestException as e:
-            last_error = f"Error calling Predibase API: {str(e)}"
-            print(f"Attempt {attempt + 1} failed: {last_error}")
-        except Exception as e:
-            last_error = f"Error processing Predibase response: {str(e)}"
-            print(f"Attempt {attempt + 1} failed: {last_error}")
-
-        if attempt < max_retries - 1:
-            print(f"Retrying in {retry_delay} seconds...")
-            time.sleep(retry_delay)
-
-    print(f"All {max_retries} attempts failed. Returning last error.")
-    return last_error
 
 
 def generate_model_response_local(
@@ -338,13 +248,8 @@ def _generate_response(model_name: str, prompt: str, temperature: float, test_mo
             # Add max_new_tokens if needed, check local function defaults
         )
     else:
-         print(f"Generating response using Predibase API: {model_name}")
-         # Call the existing Predibase API function
-         response = generate_model_response(
-            model_name=model_name,
-            prompt=formatted_prompt, # Pass the fully formatted prompt
-            temperature=temperature
-         )
+        print(f"Error: Only local models are supported. Model {model_name} is not recognized as local.")
+        response = "Error: Only local models are supported."
     # --- End of modified call ---
 
     end_time = time.time()

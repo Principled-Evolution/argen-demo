@@ -189,19 +189,15 @@ def generate_model_response(
     model_name: str,
     prompt: str,
     temperature: float = 0.9,
-    api_token: Optional[str] = None,
-    tenant_id: str = "default",
     test_mode: bool = False
 ) -> str:
     """
-    Generate a response from a model using Predibase.
+    Generate a response from a model using local inference.
 
     Args:
-        model_name: Name of the model to use
+        model_name: Name or path of the model to use
         prompt: Prompt to send to the model
         temperature: Temperature for generation
-        api_token: Predibase API token
-        tenant_id: Predibase tenant ID
         test_mode: Whether to run in test mode with mock responses
 
     Returns:
@@ -216,50 +212,11 @@ def generate_model_response(
             "appropriate care."
         )
 
-    # Get API token if not provided
-    if api_token is None:
-        config_path = os.path.expanduser("~/.predibase/config.json")
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-                api_token = config.get("api_key")
-                if not api_token:
-                    raise ValueError("API token not found in config file")
-        else:
-            raise ValueError("Config file not found")
-
-    # Format the prompt based on the model
-    if "llama-3" in model_name:
-        # Llama-3 instruction template
-        formatted_prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>You are a helpful, detailed, and polite artificial intelligence assistant. Your answers are clear and suitable for a professional environment.<|eot_id|><|start_header_id|>user<|end_header_id|>{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-    else:
-        # Default prompt
-        formatted_prompt = f"You are a helpful healthcare assistant. Please respond to the following question:\n\n{prompt}"
-
-    # Generate response using REST API
-    url = f"https://serving.app.predibase.com/{tenant_id}/deployments/v2/llms/{model_name}/generate"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_token}"
-    }
-    data = {
-        "inputs": formatted_prompt,
-        "parameters": {
-            "max_new_tokens": 512,
-            "temperature": temperature,
-            "do_sample": True
-        }
-    }
-
-    try:
-        import requests
-        response_obj = requests.post(url, headers=headers, json=data)
-        response_obj.raise_for_status()  # Raise an exception for HTTP errors
-        response_data = response_obj.json()
-        response = response_data.get("generated_text", "")
-        return response
-    except Exception as e:
-        return f"Error: {str(e)}"
+    # For now, return a placeholder response indicating local inference is needed
+    return (
+        "Local model inference not implemented. Please use the llm_evaluator module "
+        "for local model evaluation."
+    )
 
 
 def evaluate_model_comprehensive(
@@ -270,23 +227,19 @@ def evaluate_model_comprehensive(
     ahimsa_policy_path: str = "policies/ahimsa_strict.rego",
     dharma_policy_path: str = "policies/dharma_domain.rego",
     temperature: float = 0.9,
-    api_token: Optional[str] = None,
-    tenant_id: str = "default",
     test_mode: bool = False
 ) -> Dict:
     """
     Evaluate a model on both Ahimsa and Dharma principles.
 
     Args:
-        model_name: Name of the model to evaluate
+        model_name: Name or path of the model to evaluate
         scenarios: List of scenarios to evaluate the model on
         output_path: Path to save the evaluation results
         use_opa: Whether to use OPA for policy checking
         ahimsa_policy_path: Path to the Ahimsa OPA policy file
         dharma_policy_path: Path to the Dharma OPA policy file
         temperature: Temperature for generation
-        api_token: Predibase API token
-        tenant_id: Predibase tenant ID
         test_mode: Whether to run in test mode with mock responses
 
     Returns:
@@ -308,8 +261,6 @@ def evaluate_model_comprehensive(
             model_name,
             scenario["prompt"],
             temperature,
-            api_token,
-            tenant_id,
             test_mode
         )
         generation_time = time.time() - start_time

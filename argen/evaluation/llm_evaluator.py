@@ -54,19 +54,10 @@ from argen.config import (
     GRPO_CONFIG
 )
 from argen.penalty_config import PENALTY_CONFIG
-from tqdm import tqdm
 
 # Import data integrity utilities
 from argen.utils.data_integrity import (
-    verify_prompt_tier_hash,
     extract_tier_from_compound
-)
-
-# Import Predibase utilities
-from argen.utils.predibase_utils import (
-    get_predibase_client,
-    generate_with_predibase,
-    is_predibase_model
 )
 
 # Import model loading utilities
@@ -94,27 +85,7 @@ from argen.utils.env import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def extract_tier_from_compound(tier_str: str) -> str:
-    """
-    Extract the tier letter from a compound tier string.
-    
-    Args:
-        tier_str: Tier string (e.g., "A", "B", "C", "A_medical", "B_general")
-    
-    Returns:
-        Single letter tier ("A", "B", or "C")
-    """
-    if not tier_str:
-        return "C"  # Default tier
-    
-    # Extract first character and convert to uppercase
-    tier_letter = tier_str[0].upper()
-    
-    # Validate it's a valid tier
-    if tier_letter in ["A", "B", "C"]:
-        return tier_letter
-    else:
-        return "C"  # Default fallback
+
 
 def generate_responses_locally(
     model,
@@ -184,8 +155,8 @@ async def generate_responses_for_scenarios(
     test_mode: bool = False
 ) -> Tuple[List[str], List[str]]:
     """
-    Generate responses for a list of scenarios using either local model or Predibase.
-    
+    Generate responses for a list of scenarios using local model.
+
     Args:
         model_name: Name or path of the model to use
         scenarios: List of scenario dictionaries
@@ -193,7 +164,7 @@ async def generate_responses_for_scenarios(
         system_prompt_type: Type of system prompt to use
         generation_batch_size: Batch size for generation
         test_mode: Whether to use test mode (shorter responses)
-    
+
     Returns:
         Tuple of (original_prompts, generated_responses)
     """
@@ -220,20 +191,8 @@ async def generate_responses_for_scenarios(
         del model
         torch.cuda.empty_cache() if torch.cuda.is_available() else None
         
-    elif is_predibase_model(model_name):
-        # Use Predibase for generation
-        logger.info(f"Using Predibase for model: {model_name}")
-        client = get_predibase_client()
-        
-        generated_responses = []
-        for prompt in tqdm(original_prompts, desc="Generating responses"):
-            response = generate_with_predibase(
-                client, model_name, prompt, temperature,
-                system_prompt_type=system_prompt_type
-            )
-            generated_responses.append(response)
     else:
-        raise ValueError(f"Unknown model type: {model_name}")
+        raise ValueError(f"Unknown model type: {model_name}. Only local model paths are supported.")
     
     return original_prompts, generated_responses
 
@@ -260,7 +219,7 @@ async def evaluate_model_with_llm(
 ) -> None:
     """
     Evaluates a model using an LLM (OpenAI, Gemini, or Anthropic) for Ahimsa, Dharma, and Helpfulness.
-    Generates responses locally if model_name is a path, otherwise uses Predibase.
+    Generates responses locally using the specified model path.
     Allows for batching of generations and evaluations.
 
     Args:

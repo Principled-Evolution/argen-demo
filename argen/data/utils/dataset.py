@@ -55,43 +55,7 @@ def validate_dataset(examples: List[Dict], required_fields: Optional[List[str]] 
     return True
 
 
-def prepare_dataset_for_predibase(
-    examples: List[Dict],
-    output_path: str,
-    prompt_field: str = "prompt",
-    context_fields: Optional[List[str]] = None
-) -> str:
-    """
-    Prepare a dataset for use with Predibase by converting it to the required format.
-    
-    Args:
-        examples: List of examples to prepare
-        output_path: Path to save the prepared dataset
-        prompt_field: Name of the field containing the prompt
-        context_fields: List of additional fields to include as context
-        
-    Returns:
-        Path to the prepared dataset
-    """
-    prepared_examples = []
-    
-    for example in examples:
-        prepared_example = {"prompt": example[prompt_field]}
-        
-        # Add context fields if specified
-        if context_fields:
-            for field in context_fields:
-                if field in example:
-                    prepared_example[field] = example[field]
-        
-        prepared_examples.append(prepared_example)
-    
-    # Save the prepared dataset
-    with open(output_path, 'w', encoding='utf-8') as f:
-        for example in prepared_examples:
-            f.write(json.dumps(example) + '\n')
-    
-    return output_path
+
 
 
 def split_dataset(
