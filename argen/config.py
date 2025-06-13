@@ -156,6 +156,12 @@ GRPO_CONFIG = {
     # ── Gemini single-call vs batch-call mode for training ────────────────
     "use_single_gemini_calls_for_training": True,  # Default to single calls for training
     "gemini_single_call_max_concurrent": 200,      # Concurrency for single calls
+
+    # ── OpenAI concurrency settings (much lower for o3-mini) ──────────────
+    "openai_max_concurrent_eval": 5,               # Very conservative for o3-mini
+    "openai_max_concurrent_batch": 3,              # Even lower for batch operations
+    "openai_retry_delay": 10,                      # Longer delays between retries
+    "openai_max_retries": 5,                       # More retries for rate limits
 }
 
 def get_model_generation_params(temperature: Optional[float] = None) -> Dict[str, Any]:

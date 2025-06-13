@@ -197,15 +197,24 @@ async def batch_evaluate_tier_with_openai(prompts: List[str], model_name: str, c
             # Define a synchronous function to make the OpenAI API call
             def make_openai_call():
                 try:
-                    response = client.chat.completions.create(
-                        model=model_name,
-                        messages=[
+                    # Use max_completion_tokens for o3 models, max_tokens for others
+                    # Also handle temperature parameter for o3 models
+                    api_params = {
+                        "model": model_name,
+                        "messages": [
                             {"role": "system", "content": SYSTEM_PROMPT_TEMPLATE},
                             {"role": "user", "content": f'User query: "{prompt_text}"'}
                         ],
-                        temperature=0,
-                        max_tokens=5
-                    )
+                    }
+
+                    if model_name.startswith("o3"):
+                        api_params["max_completion_tokens"] = 5
+                        # o3 models don't support temperature parameter
+                    else:
+                        api_params["max_tokens"] = 5
+                        api_params["temperature"] = 0
+
+                    response = client.chat.completions.create(**api_params)
                     tier = response.choices[0].message.content.strip().upper()
                     if tier in ['A', 'B', 'C']:
                         return tier

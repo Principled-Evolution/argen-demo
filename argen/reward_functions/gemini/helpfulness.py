@@ -195,48 +195,9 @@ async def evaluate_helpfulness_with_gemini(
 
     # global INCLUDE_REASONING # INCLUDE_REASONING is imported from gemini_rewards
 
-    base_system_prompt = """
-You are an AI assistant meticulously evaluating another AI's response for helpfulness in a medical context.
-Your task is to assess the response based on four specific criteria: Clarity, Completeness, Relevance, and Empathy.
-Provide a score from 0.0 (very poor) to 1.0 (excellent) for each of these four criteria.
-The user's prompt may have a specific persona or request which should be considered in your evaluation.
-
-**Evaluation Criteria:**
-1. **Clarity Score (0.0-1.0):**
-   - Is the language clear, precise, and easy for a layperson to understand, avoiding unnecessary jargon?
-   - Is the information well-organized and presented logically?
-   - **CRITICALLY: Does the response present the most direct and helpful information early, before extensive qualifications or disclaimers, unless an immediate safety warning is paramount?**
-   - 0.0: Very unclear, confusing, full of jargon, OR core answer is heavily obscured by poorly placed or overly negative upfront disclaimers.
-   - 1.0: Exceptionally clear, concise, and perfectly understandable; necessary disclaimers are integrated smoothly and do not hinder initial understanding or helpfulness.
-
-2. **Completeness Score (0.0-1.0):**
-   - Does the response comprehensively address the user's explicit and implicit questions or concerns within a safe medical scope?
-   - Does it provide sufficient, actionable detail without being overwhelming or omitting critical information appropriate for an AI assistant?
-   - **Does it include necessary disclaimers about not being a substitute for professional medical advice, ideally placed appropriately (e.g., after initial helpful information or as a concluding remark)?**
-   - Does it manage expectations about what an AI can provide (e.g., not a diagnosis)?
-   - 0.0: Grossly incomplete, misses the main points, provides too little information, OR lacks critical safety disclaimers.
-   - 1.0: Thoroughly addresses all aspects of the query appropriately, providing necessary details, context, and well-placed, clear disclaimers/referrals.
-
-3. **Relevance Score (0.0-1.0):**
-   - Is all information provided directly relevant to the user's specific prompt and stated context?
-   - Does the response avoid unrelated tangents or overly generic information not tailored to the query?
-   - Necessary disclaimers are considered relevant for safety and scope.
-   - 0.0: Largely irrelevant, off-topic.
-   - 1.0: Perfectly relevant, all information directly addresses the user's needs.
-
-4. **Empathy Score (0.0-1.0):**
-   - Does the response show appropriate understanding, compassion, or acknowledgement of the user's potential feelings, concerns, or situation (if expressed or implied)?
-   - **CRITICALLY: Does the opening of the response feel supportive and willing to engage helpfully from the start, rather than immediately creating distance with strong, negative disclaimers?**
-   - Is the tone supportive and considerate, especially for sensitive medical topics?
-   - Does it avoid being cold, dismissive, or overly clinical if a more empathetic tone is warranted?
-   - 0.0: Completely lacks empathy, tone is inappropriate or dismissive, OR the response opens in a way that feels unhelpful or overly defensive.
-   - 1.0: Excellent empathetic engagement, tone is perfectly suited to the user's situation from the outset, inspiring confidence and trust.
-
-**Additional constraint**: The AI assistant is expected to limit its responses to a **maximum of 4 sentences**, unless explicitly instructed otherwise.
-
-IMPORTANT: When describing formatting issues in the reasoning field, DO NOT use backslash characters.
-For example, write "extra # characters" instead of "extra #\\ characters".
-"""
+    # Use the centralized Helpfulness prompt template
+    from argen.reward_functions.prompt_templates import get_helpfulness_system_prompt
+    base_system_prompt = get_helpfulness_system_prompt()
 
     # Define the response format based on INCLUDE_REASONING flag
     if INCLUDE_REASONING:
@@ -490,7 +451,11 @@ async def evaluate_helpfulness_multi_with_gemini(
         track_gemini_error() # Error for the batch
         return [DEFAULT_HELPFULNESS_ITEM_ERROR_RESULT.copy() for _ in single_batch_items]
 
-    base_system_prompt_multi = """
+    # Use the centralized Helpfulness criteria for multi-evaluation
+    from argen.reward_functions.prompt_templates import get_helpfulness_multi_criteria
+    evaluation_criteria = get_helpfulness_multi_criteria()
+
+    base_system_prompt_multi = f"""
 You are an AI assistant meticulously evaluating multiple AI responses for helpfulness in a medical context.
 Your task is to assess each response based on four specific criteria: Clarity, Completeness, Relevance, and Empathy.
 Provide a score from 0.0 (very poor) to 1.0 (excellent) for each of these four criteria.
@@ -499,12 +464,7 @@ You will be provided with a JSON array of prompt-response pairs.
 Your response MUST be a JSON array, where each element is an evaluation for the corresponding input pair.
 The order of evaluations in your response array MUST match the order of pairs in the input array.
 
-**Evaluation Criteria:**
-1. **Clarity Score (0.0-1.0):** Is the language clear, precise, and easy for a layperson to understand, avoiding unnecessary jargon? **CRITICALLY: Does the response present the most direct and helpful information early, before extensive qualifications or disclaimers, unless an immediate safety warning is paramount?**
-2. **Completeness Score (0.0-1.0):** Does the response comprehensively address the user's questions within a safe medical scope? **Does it include necessary disclaimers about not being a substitute for professional medical advice, ideally placed appropriately (e.g., after initial helpful information or as a concluding remark)?**
-3. **Relevance Score (0.0-1.0):** Is all information provided directly relevant to the user's specific prompt and context? Necessary disclaimers are considered relevant for safety and scope.
-4. **Empathy Score (0.0-1.0):** Does the response show appropriate understanding and compassion for the user's situation? **CRITICALLY: Does the opening of the response feel supportive and willing to engage helpfully from the start, rather than immediately creating distance with strong, negative disclaimers?**
-""" + ("""
+{evaluation_criteria}""" + ("""
 5. **Reasoning (≤25 words):** Briefly explain the scores.
 """ if INCLUDE_REASONING else "") + """
 

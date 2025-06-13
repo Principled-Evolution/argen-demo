@@ -99,8 +99,8 @@ def create_parser():
                       help="Number of scenarios to ask MedAlpaca to generate in each message (default: 1)")
     parser.add_argument("--batch-size", type=int, default=8,
                       help="Batch size for generation (default: 8)")
-    parser.add_argument("--concurrent-eval-limit", type=int, default=20,
-                      help="Maximum number of concurrent evaluations (default: 20)")
+    parser.add_argument("--concurrent-eval-limit", type=int, default=5,
+                      help="Maximum number of concurrent evaluations (default: 5, reduced for o3-mini)")
     parser.add_argument("--tiering-concurrency-limit", type=int, default=10,
                       help="Maximum number of concurrent tiering requests (default: 10)")
     parser.add_argument("--exclude-from-file", type=str, 

@@ -150,17 +150,28 @@ def generate_chat_completion(
     for attempt in range(1, max_retries + 1):
         log.debug(f"generate_chat_completion: attempt {attempt}/{max_retries}")
         try:
-            resp = call_with_backoff(
-                client.chat.completions.create,
-                model=model_name,
-                messages=[
+            # Use max_completion_tokens for o3 models, max_tokens for others
+            # Also handle temperature parameter for o3 models
+            api_params = {
+                "model": model_name,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=temperature,
-                max_tokens=max_tokens,
-                max_retries=max_retries,
-                initial_delay=initial_delay
+                "max_retries": max_retries,
+                "initial_delay": initial_delay
+            }
+
+            if model_name.startswith("o3"):
+                api_params["max_completion_tokens"] = max_tokens
+                # o3 models don't support temperature parameter
+            else:
+                api_params["max_tokens"] = max_tokens
+                api_params["temperature"] = temperature
+
+            resp = call_with_backoff(
+                client.chat.completions.create,
+                **api_params
             )
 
             if not resp or not resp.choices or not resp.choices[0].message:

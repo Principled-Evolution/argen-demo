@@ -39,7 +39,7 @@ def parse_arguments():
         "--models",
         type=str,
         nargs="+",
-        required=True,
+        required=False,
         help="List of model names/paths to evaluate"
     )
     parser.add_argument(
@@ -139,6 +139,12 @@ def parse_arguments():
         type=str,
         default="gemini-2.0-flash",
         help="Gemini model to use for evaluation"
+    )
+
+    parser.add_argument(
+        "--input-json",
+        type=str,
+        help="Path to JSON file containing pre-generated prompt-response pairs to evaluate (mutually exclusive with --models)"
     )
 
     return parser.parse_args()
@@ -581,31 +587,137 @@ def generate_summary_table(metrics_list: List[Dict[str, Any]]) -> str:
     return table
 
 
+def evaluate_json_input(
+    input_json: str,
+    output_dir: str,
+    evaluator: str,
+    temperature: float,
+    system_prompt: str,
+    no_medical_disclaimer_penalty: bool,
+    no_referral_penalty: bool,
+    test: bool,
+    eval_mode: str,
+    openai_model: str = None,
+    anthropic_model: str = None,
+    gemini_model: str = None
+) -> tuple:
+    """
+    Evaluate pre-generated responses from a JSON file.
+
+    Args:
+        input_json: Path to the JSON file containing pre-generated responses
+        output_dir: Directory to save results
+        evaluator: Which LLM to use for evaluation
+        temperature: Temperature for evaluation
+        system_prompt: Type of system prompt to use
+        no_medical_disclaimer_penalty: Whether to disable medical disclaimer penalty
+        no_referral_penalty: Whether to disable referral penalty
+        test: Whether to run in test mode
+        eval_mode: Evaluation mode for Gemini evaluator
+        openai_model: OpenAI model to use
+        anthropic_model: Anthropic model to use
+        gemini_model: Gemini model to use
+
+    Returns:
+        tuple: (output_file_path, model_name) or (None, None) on failure
+    """
+    try:
+        # Create output filename with format: $input-$evaluatorModelName.$extension
+        json_filename = os.path.basename(input_json)
+        base_name = os.path.splitext(json_filename)[0]  # Remove .json extension
+        extension = os.path.splitext(json_filename)[1]  # Get .json extension
+
+        # Get evaluator model name
+        evaluator_model_name = evaluator
+        if evaluator == "openai" and openai_model:
+            evaluator_model_name = openai_model
+        elif evaluator == "anthropic" and anthropic_model:
+            evaluator_model_name = anthropic_model
+        elif evaluator == "gemini" and gemini_model:
+            evaluator_model_name = gemini_model
+
+        output_filename = f"{base_name}-{evaluator_model_name}{extension}"
+        output_file = os.path.join(output_dir, output_filename)
+
+        cmd = [
+            "python", "examples/evaluate_baseline.py",
+            "--input-json", input_json,
+            "--output_base", os.path.join(output_dir, f"temp_{base_name}"),
+            "--evaluator", evaluator,
+            "--temperature", str(temperature),
+            "--system_prompt", system_prompt
+        ]
+
+        # Only add eval-mode for Gemini evaluator
+        if evaluator == "gemini":
+            cmd.extend(["--eval-mode", eval_mode])
+
+        # Add model selection parameters
+        if openai_model:
+            cmd.extend(["--openai-model", openai_model])
+        if anthropic_model:
+            cmd.extend(["--anthropic-model", anthropic_model])
+        if gemini_model:
+            cmd.extend(["--gemini-model", gemini_model])
+
+        if no_medical_disclaimer_penalty:
+            cmd.append("--no_medical_disclaimer_penalty")
+
+        if no_referral_penalty:
+            cmd.append("--no_referral_penalty")
+
+        if test:
+            cmd.append("--test")
+
+        print(f"\n\n{'='*80}")
+        print(f"Evaluating JSON input: {input_json}")
+        print(f"{'='*80}\n")
+
+        subprocess.run(cmd, check=True)
+
+        # Find the generated output file (which has a timestamp in its name)
+        output_files = list(pathlib.Path(output_dir).glob(f"temp_{base_name}_*.json"))
+
+        if not output_files:
+            print(f"Error: No output file found for JSON input {input_json}")
+            return None, None
+
+        # Rename the file to our standardized name
+        os.rename(str(output_files[0]), output_file)
+        return output_file, f"JSON:{base_name}"
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error evaluating JSON input {input_json}: {e}")
+        return None, None
+    except Exception as e:
+        print(f"Unexpected error evaluating JSON input {input_json}: {e}")
+        return None, None
+
+
 def main():
     """Run the multi-model evaluation script."""
     args = parse_arguments()
+
+    # Validate mutually exclusive arguments
+    if args.input_json and args.models:
+        print("Error: --input-json and --models are mutually exclusive")
+        sys.exit(1)
+
+    if not args.input_json and not args.models:
+        print("Error: Either --input-json or --models must be specified")
+        sys.exit(1)
 
     # Create output directory
     output_dir = create_output_directory()
     print(f"Results will be saved to: {output_dir}")
 
-    # Check for available CUDA devices
-    num_gpus = get_cuda_device_count()
-    print(f"Detected {num_gpus} CUDA devices")
+    # Handle JSON input mode
+    if args.input_json:
+        print(f"JSON input mode: evaluating pre-generated responses from {args.input_json}")
 
-    # Determine evaluation strategy
-    use_parallel = num_gpus > 1 and len(args.models) > 1 and not args.no_parallel
-    use_pipeline = use_parallel and not args.no_pipeline and len(args.models) > 1
-
-    if use_pipeline:
-        # Use pipelined evaluation (start next model as soon as a GPU is available)
-        print(f"Using pipelined evaluation with up to {min(num_gpus, len(args.models))} concurrent models")
-        print(f"Pipeline delay: {args.pipeline_delay} seconds")
-
-        # Create and run the evaluation manager
-        manager = ModelEvaluationManager(
-            models=args.models,
-            scenarios=args.scenarios,
+        # For JSON input, we evaluate a single set of responses, so no parallelization needed
+        result = evaluate_json_input(
+            input_json=args.input_json,
             output_dir=output_dir,
             evaluator=args.evaluator,
             temperature=args.temperature,
@@ -614,84 +726,119 @@ def main():
             no_referral_penalty=args.no_referral_penalty,
             test=args.test,
             eval_mode=args.eval_mode,
-            generation_batch_size=args.generation_batch_size,
-            pipeline_delay=args.pipeline_delay,
-            max_concurrent_models=args.max_concurrent_models,
             openai_model=getattr(args, 'openai_model', None),
             anthropic_model=getattr(args, 'anthropic_model', None),
             gemini_model=getattr(args, 'gemini_model', None)
         )
 
-        # Run the pipeline and get results
-        model_results = manager.run_pipeline()
-
-    elif use_parallel:
-        # Use parallel evaluation (start all models at once)
-        print(f"Using parallel evaluation across {min(num_gpus, len(args.models))} GPUs")
-
-        # Create a pool with one process per GPU (up to the number of models)
-        num_processes = min(num_gpus, len(args.models))
-
-        # Prepare arguments for each model-GPU pair
-        eval_args = []
-        for i, model in enumerate(args.models):
-            gpu_id = i % num_gpus  # Distribute models across available GPUs
-            eval_args.append((
-                model,
-                args.scenarios,
-                output_dir,
-                args.evaluator,
-                args.temperature,
-                args.system_prompt,
-                args.no_medical_disclaimer_penalty,
-                args.no_referral_penalty,
-                args.test,
-                args.eval_mode,
-                args.generation_batch_size,
-                gpu_id,
-                getattr(args, 'openai_model', None),
-                getattr(args, 'anthropic_model', None),
-                getattr(args, 'gemini_model', None)
-            ))
-
-        # Run evaluations in parallel
-        with multiprocessing.Pool(processes=num_processes) as pool:
-            model_results = pool.map(evaluate_model_on_gpu, eval_args)
-
-        # Filter out None results
-        model_results = [result for result in model_results if result[0] is not None]
-
-    else:
-        # Sequential evaluation
-        if num_gpus == 0:
-            print("No CUDA devices detected, using CPU for evaluation")
-        elif args.no_parallel:
-            print("Parallel evaluation disabled, using sequential evaluation")
+        if result[0]:  # If output_file is not None
+            model_results = [result]
         else:
-            print("Using sequential evaluation (single GPU or single model)")
+            model_results = []
+    else:
+        # Check for available CUDA devices
+        num_gpus = get_cuda_device_count()
+        print(f"Detected {num_gpus} CUDA devices")
 
-        # Evaluate each model sequentially
-        model_results = []  # List of (output_file, original_model_name) tuples
-        for model in args.models:
-            result = evaluate_model(
-                model=model,
-                scenarios=args.scenarios,
-                output_dir=output_dir,
-                evaluator=args.evaluator,
-                temperature=args.temperature,
-                system_prompt=args.system_prompt,
-                no_medical_disclaimer_penalty=args.no_medical_disclaimer_penalty,
-                no_referral_penalty=args.no_referral_penalty,
-                test=args.test,
-                eval_mode=args.eval_mode,
-                generation_batch_size=args.generation_batch_size,
-                openai_model=getattr(args, 'openai_model', None),
-                anthropic_model=getattr(args, 'anthropic_model', None),
-                gemini_model=getattr(args, 'gemini_model', None)
-            )
+        # Determine evaluation strategy
+        use_parallel = num_gpus > 1 and len(args.models) > 1 and not args.no_parallel
+        use_pipeline = use_parallel and not args.no_pipeline and len(args.models) > 1
 
-            if result[0]:  # If output_file is not None
-                model_results.append(result)
+        if use_pipeline:
+                # Use pipelined evaluation (start next model as soon as a GPU is available)
+                print(f"Using pipelined evaluation with up to {min(num_gpus, len(args.models))} concurrent models")
+                print(f"Pipeline delay: {args.pipeline_delay} seconds")
+
+                # Create and run the evaluation manager
+                manager = ModelEvaluationManager(
+                    models=args.models,
+                    scenarios=args.scenarios,
+                    output_dir=output_dir,
+                    evaluator=args.evaluator,
+                    temperature=args.temperature,
+                    system_prompt=args.system_prompt,
+                    no_medical_disclaimer_penalty=args.no_medical_disclaimer_penalty,
+                    no_referral_penalty=args.no_referral_penalty,
+                    test=args.test,
+                    eval_mode=args.eval_mode,
+                    generation_batch_size=args.generation_batch_size,
+                    pipeline_delay=args.pipeline_delay,
+                    max_concurrent_models=args.max_concurrent_models,
+                    openai_model=getattr(args, 'openai_model', None),
+                    anthropic_model=getattr(args, 'anthropic_model', None),
+                    gemini_model=getattr(args, 'gemini_model', None)
+                )
+
+                # Run the pipeline and get results
+                model_results = manager.run_pipeline()
+
+        elif use_parallel:
+            # Use parallel evaluation (start all models at once)
+            print(f"Using parallel evaluation across {min(num_gpus, len(args.models))} GPUs")
+
+            # Create a pool with one process per GPU (up to the number of models)
+            num_processes = min(num_gpus, len(args.models))
+
+            # Prepare arguments for each model-GPU pair
+            eval_args = []
+            for i, model in enumerate(args.models):
+                gpu_id = i % num_gpus  # Distribute models across available GPUs
+                eval_args.append((
+                    model,
+                    args.scenarios,
+                    output_dir,
+                    args.evaluator,
+                    args.temperature,
+                    args.system_prompt,
+                    args.no_medical_disclaimer_penalty,
+                    args.no_referral_penalty,
+                    args.test,
+                    args.eval_mode,
+                    args.generation_batch_size,
+                    gpu_id,
+                    getattr(args, 'openai_model', None),
+                    getattr(args, 'anthropic_model', None),
+                    getattr(args, 'gemini_model', None)
+                ))
+
+            # Run evaluations in parallel
+            with multiprocessing.Pool(processes=num_processes) as pool:
+                model_results = pool.map(evaluate_model_on_gpu, eval_args)
+
+            # Filter out None results
+            model_results = [result for result in model_results if result[0] is not None]
+
+        else:
+            # Sequential evaluation
+            if num_gpus == 0:
+                print("No CUDA devices detected, using CPU for evaluation")
+            elif args.no_parallel:
+                print("Parallel evaluation disabled, using sequential evaluation")
+            else:
+                print("Using sequential evaluation (single GPU or single model)")
+
+            # Evaluate each model sequentially
+            model_results = []  # List of (output_file, original_model_name) tuples
+            for model in args.models:
+                result = evaluate_model(
+                    model=model,
+                    scenarios=args.scenarios,
+                    output_dir=output_dir,
+                    evaluator=args.evaluator,
+                    temperature=args.temperature,
+                    system_prompt=args.system_prompt,
+                    no_medical_disclaimer_penalty=args.no_medical_disclaimer_penalty,
+                    no_referral_penalty=args.no_referral_penalty,
+                    test=args.test,
+                    eval_mode=args.eval_mode,
+                    generation_batch_size=args.generation_batch_size,
+                    openai_model=getattr(args, 'openai_model', None),
+                    anthropic_model=getattr(args, 'anthropic_model', None),
+                    gemini_model=getattr(args, 'gemini_model', None)
+                )
+
+                if result[0]:  # If output_file is not None
+                    model_results.append(result)
 
     # Generate summary table
     metrics_list = []

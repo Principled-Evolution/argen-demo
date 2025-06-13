@@ -762,15 +762,32 @@ def main():
         help="Gemini model to use for evaluation"
     )
 
+    parser.add_argument(
+        "--input-json",
+        type=str,
+        help="Path to JSON file containing pre-generated prompt-response pairs to evaluate (mutually exclusive with --model)"
+    )
+
     args = parser.parse_args()
+
+    # Validate mutually exclusive arguments
+    if args.input_json and args.model != DEFAULT_MODEL_ID:
+        print("Error: --input-json and --model are mutually exclusive")
+        sys.exit(1)
+
+    if args.input_json and args.compare_eval_modes:
+        print("Error: --input-json cannot be used with --compare-eval-modes")
+        sys.exit(1)
 
     # Validate comparison mode
     if args.compare_eval_modes and args.evaluator != "gemini":
         print("Error: --compare-eval-modes can only be used with --evaluator gemini")
         sys.exit(1)
 
-    # Validate eval mode
-    if args.eval_mode != "batch" and args.evaluator != "gemini":
+    # Validate eval mode (only if explicitly provided and not using default)
+    # Check if --eval-mode was explicitly provided by checking if it's different from default when using non-gemini evaluator
+    eval_mode_explicitly_provided = "--eval-mode" in sys.argv
+    if eval_mode_explicitly_provided and args.evaluator != "gemini":
         print("Error: --eval-mode can only be used with --evaluator gemini")
         sys.exit(1)
 
@@ -835,13 +852,23 @@ def main():
         print(f"Gemini evaluation mode: {args.eval_mode}")
     print(f"Results will be saved to: {output_filename}")
 
-    # Load the scenarios
-    scenarios = load_scenarios(args.scenarios)
+    # Load scenarios or JSON input
+    pregenerated_responses = None
+    if args.input_json:
+        print(f"Loading pre-generated responses from: {args.input_json}")
+        from argen.evaluation.llm_evaluator import load_prompts_responses_from_json
+        pregenerated_responses, scenarios = load_prompts_responses_from_json(args.input_json)
+        print(f"Loaded {len(pregenerated_responses)} pre-generated prompt-response pairs")
+    else:
+        # Load the scenarios normally
+        scenarios = load_scenarios(args.scenarios)
 
     # For testing, use only the first scenario if --test flag is provided
     if args.test:
         print("Running in test mode with only the first scenario...")
         scenarios = scenarios[:1]
+        if pregenerated_responses:
+            pregenerated_responses = pregenerated_responses[:1]
 
     # Determine penalty configuration from CLI arguments
     apply_medical_disclaimer_penalty = None
@@ -904,7 +931,8 @@ def main():
             gemini_eval_mode=args.eval_mode,
             openai_model=getattr(args, 'openai_model', None),      # Add model selection
             anthropic_model=getattr(args, 'anthropic_model', None), # Add model selection
-            gemini_model=getattr(args, 'gemini_model', None)       # Add model selection
+            gemini_model=getattr(args, 'gemini_model', None),       # Add model selection
+            pregenerated_responses=pregenerated_responses           # Add pre-generated responses
         ))
 
         print("Baseline model evaluation complete!")

@@ -199,14 +199,23 @@ def get_llm_scope_with_openai(prompt_text: str, model_name: str, client) -> str:
             # Get the system prompt with the text inserted
             system_prompt = get_scope_prompt_for_text(prompt_text)
 
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
+            # Use max_completion_tokens for o3 models, max_tokens for others
+            # Also handle temperature parameter for o3 models
+            api_params = {
+                "model": model_name,
+                "messages": [
                     {"role": "system", "content": system_prompt}
                 ],
-                temperature=0,
-                max_tokens=20  # Increased to accommodate JSON response
-            )
+            }
+
+            if model_name.startswith("o3"):
+                api_params["max_completion_tokens"] = 20  # Increased to accommodate JSON response
+                # o3 models don't support temperature parameter
+            else:
+                api_params["max_tokens"] = 20  # Increased to accommodate JSON response
+                api_params["temperature"] = 0
+
+            response = client.chat.completions.create(**api_params)
 
             content = response.choices[0].message.content.strip()
 
@@ -397,15 +406,24 @@ def classify_prompt_scope(prompt_text: str, model_name: str, client=None, evalua
         else:
             # Use OpenAI for symptom detection
             try:
-                response = client.chat.completions.create(
-                    model=model_name,
-                    temperature=0.0,
-                    max_tokens=1,
-                    messages=[{
+                # Use max_completion_tokens for o3 models, max_tokens for others
+                # Also handle temperature parameter for o3 models
+                api_params = {
+                    "model": model_name,
+                    "messages": [{
                         "role": "system",
                         "content": SYMPTOM_Q + prompt_text
                     }],
-                )
+                }
+
+                if model_name.startswith("o3"):
+                    api_params["max_completion_tokens"] = 1
+                    # o3 models don't support temperature parameter
+                else:
+                    api_params["max_tokens"] = 1
+                    api_params["temperature"] = 0.0
+
+                response = client.chat.completions.create(**api_params)
                 is_symptom = response.choices[0].message.content.strip().upper().startswith("Y")
             except Exception as e:
                 logger.error(f"Error using OpenAI for symptom detection: {e}")

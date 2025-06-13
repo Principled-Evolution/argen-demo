@@ -86,6 +86,62 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def load_prompts_responses_from_json(json_file_path: str) -> Tuple[List[Tuple[str, str]], List[Dict]]:
+    """
+    Load prompt-response pairs from a JSON file.
+
+    Args:
+        json_file_path: Path to the JSON file containing evaluation results
+
+    Returns:
+        Tuple of (prompt_response_pairs, scenario_metadata)
+        - prompt_response_pairs: List of (prompt, response) tuples
+        - scenario_metadata: List of scenario metadata dictionaries
+    """
+    try:
+        with open(json_file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        # Extract individual results
+        individual_results = data.get('individual_results', [])
+        if not individual_results:
+            raise ValueError(f"No 'individual_results' found in JSON file: {json_file_path}")
+
+        prompt_response_pairs = []
+        scenario_metadata = []
+
+        for result in individual_results:
+            prompt = result.get('prompt', '')
+            response = result.get('response', '')
+            scenario_id = result.get('scenario_id', '')
+
+            if not prompt or not response:
+                logger.warning(f"Skipping result with missing prompt or response: {scenario_id}")
+                continue
+
+            prompt_response_pairs.append((prompt, response))
+
+            # Create scenario metadata (extract what we can from the result)
+            scenario_meta = {
+                'scenario_id': scenario_id,
+                'prompt': prompt,
+                # Try to extract tier and scope if available in the original data
+                'tier': 'C',  # Default tier
+                'scope': 'S0'  # Default scope
+            }
+            scenario_metadata.append(scenario_meta)
+
+        logger.info(f"Loaded {len(prompt_response_pairs)} prompt-response pairs from {json_file_path}")
+        return prompt_response_pairs, scenario_metadata
+
+    except FileNotFoundError:
+        raise FileNotFoundError(f"JSON file not found: {json_file_path}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON format in file {json_file_path}: {e}")
+    except Exception as e:
+        raise ValueError(f"Error loading JSON file {json_file_path}: {e}")
+
+
 
 def generate_responses_locally(
     model,
@@ -215,15 +271,16 @@ async def evaluate_model_with_llm(
     skip_evaluation: bool = False,
     openai_model: Optional[str] = None,      # Add model selection
     anthropic_model: Optional[str] = None,   # Add model selection
-    gemini_model: Optional[str] = None       # Add model selection
+    gemini_model: Optional[str] = None,      # Add model selection
+    pregenerated_responses: Optional[List[Tuple[str, str]]] = None  # Add support for pre-generated (prompt, response) pairs
 ) -> None:
     """
     Evaluates a model using an LLM (OpenAI, Gemini, or Anthropic) for Ahimsa, Dharma, and Helpfulness.
-    Generates responses locally using the specified model path.
+    Can either generate responses locally using the specified model path, or evaluate pre-generated responses.
     Allows for batching of generations and evaluations.
 
     Args:
-        model_name: Name or path of the model to evaluate
+        model_name: Name or path of the model to evaluate (ignored if pregenerated_responses provided)
         scenarios: List of scenario dictionaries
         output_file: Path to save evaluation results
         temperature: Temperature for generation
@@ -241,14 +298,30 @@ async def evaluate_model_with_llm(
         openai_model: Specific OpenAI model to use
         anthropic_model: Specific Anthropic model to use
         gemini_model: Specific Gemini model to use
+        pregenerated_responses: Optional list of (prompt, response) tuples to evaluate instead of generating new responses
     """
     logger.info(f"Starting evaluation for model: {model_name} with evaluator: {evaluator.upper()}")
-    logger.info(f"Processing {len(scenarios)} scenarios with generation batch size: {generation_batch_size}")
 
-    # Generate responses for all scenarios
-    original_prompts, generated_responses = await generate_responses_for_scenarios(
-        model_name, scenarios, temperature, system_prompt_type, generation_batch_size, test_mode
-    )
+    # Handle pre-generated responses or generate new ones
+    if pregenerated_responses:
+        logger.info(f"Using {len(pregenerated_responses)} pre-generated prompt-response pairs")
+        original_prompts = [pair[0] for pair in pregenerated_responses]
+        generated_responses = [pair[1] for pair in pregenerated_responses]
+
+        # Validate that we have the right number of responses for scenarios
+        if len(pregenerated_responses) != len(scenarios):
+            logger.warning(f"Number of pre-generated responses ({len(pregenerated_responses)}) doesn't match scenarios ({len(scenarios)})")
+            # Truncate or pad as needed
+            min_len = min(len(pregenerated_responses), len(scenarios))
+            original_prompts = original_prompts[:min_len]
+            generated_responses = generated_responses[:min_len]
+            scenarios = scenarios[:min_len]
+    else:
+        logger.info(f"Processing {len(scenarios)} scenarios with generation batch size: {generation_batch_size}")
+        # Generate responses for all scenarios
+        original_prompts, generated_responses = await generate_responses_for_scenarios(
+            model_name, scenarios, temperature, system_prompt_type, generation_batch_size, test_mode
+        )
 
     # Skip evaluation if requested
     if skip_evaluation:
@@ -288,7 +361,23 @@ async def evaluate_model_with_llm(
                 metadata_list=[item["metadata"] for item in openai_eval_items],
                 model_name=openai_model
             )
-            evaluation_results = batch_results
+
+            # Process batch results to add prompt, response, scenario_id and combined score
+            for i, result in enumerate(batch_results):
+                # Calculate combined score
+                combined_score = calculate_combined_score(
+                    result.get("ahimsa_score", 0.0),
+                    result.get("dharma_score", 0.0),
+                    result.get("helpfulness_score", 0.0)
+                )
+                result["combined_score"] = combined_score
+
+                # Add prompt, response, and scenario_id to match input format
+                result["prompt"] = original_prompts[i]
+                result["response"] = generated_responses[i]
+                result["scenario_id"] = scenarios[i].get("scenario_id", f"scenario_{i}")
+
+                evaluation_results.append(result)
 
     elif evaluator == "anthropic":
         # Import Anthropic functions
@@ -505,8 +594,43 @@ async def evaluate_model_with_llm(
         logger.error(f"Unknown evaluator: {evaluator}. Supported evaluators: openai, gemini, anthropic")
         raise ValueError(f"Unknown evaluator: {evaluator}")
 
-    # Save evaluation results
-    save_evaluation_results(evaluation_results, output_file)
+    # Calculate summary metrics
+    from argen.evaluation.openai_evaluator import calculate_metrics
+    final_metrics = calculate_metrics(evaluation_results)
+
+    # Create the full output structure (similar to openai_evaluator.py)
+    evaluator_info = f"{evaluator}"
+    if evaluator == "gemini":
+        from argen.reward_functions.gemini_rewards import GEMINI_EVAL_MODEL
+        evaluator_info = f"gemini ({GEMINI_EVAL_MODEL})"
+    elif evaluator == "openai" and openai_model:
+        evaluator_info = f"openai ({openai_model})"
+    elif evaluator == "anthropic" and anthropic_model:
+        evaluator_info = f"anthropic ({anthropic_model})"
+
+    output_data = {
+        "evaluation_config": {
+            "model_name": model_name,
+            "evaluator": evaluator_info,
+            "num_scenarios": len(scenarios),
+            "temperature": temperature,
+            "test_mode": test_mode,
+            "system_prompt_type": system_prompt_type,
+            "generation_batch_size": generation_batch_size,
+            "ahimsa_weight": REWARD_WEIGHTS["ahimsa"],
+            "dharma_weight": REWARD_WEIGHTS["dharma"],
+            "helpfulness_weight": REWARD_WEIGHTS["helpfulness"],
+            "apply_medical_disclaimer_penalty": PENALTY_CONFIG["apply_medical_disclaimer_penalty"],
+            "referral_policy": PENALTY_CONFIG["referral_policy"],
+            "timestamp": datetime.datetime.now().isoformat()
+        },
+        "summary_metrics": final_metrics,
+        "individual_results": evaluation_results
+    }
+
+    # Save the full evaluation results
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(output_data, f, indent=4, ensure_ascii=False)
 
     # Create evaluation summary
     create_evaluation_summary(evaluation_results, output_file)
