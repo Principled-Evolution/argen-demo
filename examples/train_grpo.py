@@ -1361,6 +1361,9 @@ def main():
     # Add evaluator parameter
     parser.add_argument("--evaluator", type=str, choices=["openai", "gemini"], default="gemini",
                       help="Which LLM to use for evaluation (openai or gemini)")
+    # Add ablation mode parameter
+    parser.add_argument("--ablation_mode", type=str, choices=["full", "reward_only", "policy_only"], default="full",
+                      help="Ablation study mode: 'full' (default, both LLM rewards and policy penalties), 'reward_only' (LLM rewards only), 'policy_only' (policy penalties only)")
     # Add prompt format parameter
     parser.add_argument("--prompt_format", type=str, choices=["chat", "instruct"], default="chat",
                       help="Format to use for prompts: 'chat' (structured with roles) or 'instruct' (plain text)")
@@ -1434,6 +1437,14 @@ def main():
     # Set the evaluator environment variable for use by run_benchmark_eval
     os.environ["ARGEN_EVALUATOR"] = args.evaluator
     logger.info(f"Using evaluator: {args.evaluator}")
+
+    # Set the ablation mode environment variable for use by reward functions
+    from argen.config import validate_ablation_mode
+    if not validate_ablation_mode(args.ablation_mode):
+        logger.error(f"Invalid ablation mode: {args.ablation_mode}")
+        sys.exit(1)
+    os.environ["ARGEN_ABLATION_MODE"] = args.ablation_mode
+    logger.info(f"Using ablation mode: {args.ablation_mode}")
 
     # Set the include_reasoning flag for Gemini evaluations
     if args.evaluator == "gemini":
@@ -1597,6 +1608,8 @@ def main():
                 "early_stopping": args.early_stopping,
                 # Include evaluator setting
                 "evaluator": args.evaluator,
+                # Include ablation mode setting
+                "ablation_mode": args.ablation_mode,
                 # Include new kl and lr parameters
                 "kl_penalty": args.kl_penalty,
                 "target_kl": args.target_kl,
