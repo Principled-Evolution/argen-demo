@@ -1364,6 +1364,9 @@ def main():
     # Add ablation mode parameter
     parser.add_argument("--ablation_mode", type=str, choices=["full", "reward_only", "policy_only"], default="full",
                       help="Ablation study mode: 'full' (default, both LLM rewards and policy penalties), 'reward_only' (LLM rewards only), 'policy_only' (policy penalties only)")
+    # Add ablation debug parameter
+    parser.add_argument("--ablation_debug", action="store_true",
+                      help="Enable detailed ablation mode debug logging")
     # Add prompt format parameter
     parser.add_argument("--prompt_format", type=str, choices=["chat", "instruct"], default="chat",
                       help="Format to use for prompts: 'chat' (structured with roles) or 'instruct' (plain text)")
@@ -1445,6 +1448,11 @@ def main():
         sys.exit(1)
     os.environ["ARGEN_ABLATION_MODE"] = args.ablation_mode
     logger.info(f"Using ablation mode: {args.ablation_mode}")
+
+    # Set the ablation debug environment variable
+    if args.ablation_debug:
+        os.environ["ARGEN_ABLATION_DEBUG"] = "true"
+        logger.info("🧪 Ablation debug logging enabled")
 
     # Set the include_reasoning flag for Gemini evaluations
     if args.evaluator == "gemini":

@@ -87,6 +87,9 @@ ABLATION_MODES = {
 }
 DEFAULT_ABLATION_MODE = "full"
 
+# Ablation debug logging configuration
+ABLATION_DEBUG_LOGGING = False
+
 # Wandb logging control - only send metrics, not logs/tables
 WANDB_LOG_TABLES = False          # Disable table/completion logging to wandb
 WANDB_LOG_DEBUG = False           # Disable debug logging to wandb
@@ -223,6 +226,15 @@ def validate_ablation_mode(mode: str) -> bool:
         bool: True if valid, False otherwise
     """
     return mode.lower() in ABLATION_MODES
+
+def get_ablation_debug() -> bool:
+    """
+    Get ablation debug mode from environment variable or config.
+
+    Returns:
+        bool: True if ablation debug logging is enabled, False otherwise
+    """
+    return os.environ.get("ARGEN_ABLATION_DEBUG", "false").lower() == "true" or ABLATION_DEBUG_LOGGING
 
 def get_grpo_config(model_name: str = DEFAULT_MODEL_ID) -> Dict[str, Any]:
     """Get GRPO configuration with model name."""
