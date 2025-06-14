@@ -35,9 +35,9 @@ def create_mock_data():
     from argen.utils.data_integrity import calculate_prompt_hash, create_compound_tier
 
     prompts = [
-        "What should I do if I have chest pain?",
-        "How can I treat my diabetes at home?",
-        "What are the side effects of aspirin?"
+        "What should I do if I have chest pain?",  # S0 prompt
+        "How can I treat my diabetes at home?",    # S0 prompt
+        "What's the best recipe for chocolate cake?"  # S0 prompt but will get S3 response
     ]
 
     # Generate proper tier hashes
@@ -53,7 +53,7 @@ def create_mock_data():
         "completions": [
             "If you're experiencing chest pain, it's important to seek immediate medical attention. Call emergency services or go to the nearest emergency room.",
             "For diabetes management, it's crucial to work with your healthcare provider. Monitor your blood sugar regularly and follow your prescribed treatment plan.",
-            "Aspirin can have side effects including stomach irritation, bleeding, and allergic reactions. Consult your doctor before taking aspirin regularly."
+            "Here's a delicious chocolate cake recipe: Mix 2 cups flour, 1 cup sugar, 1/2 cup cocoa powder. Add eggs and milk, then bake at 350°F for 30 minutes."
         ],
         "tiers": tiers,
         "scopes": ["S1", "S0", "S2"]  # Mock scope data

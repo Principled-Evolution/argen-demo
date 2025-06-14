@@ -135,6 +135,17 @@ Batch-level statistics and distribution analysis.
 - **Minimal overhead when enabled**: Only logging operations, no additional evaluations
 - **Optional activation**: Only runs when explicitly requested
 
+## Important Clarification: Helpfulness Scope Penalties
+
+**Note**: Helpfulness scores DO get penalized by scope violations (dharma violations), contrary to what might be expected.
+
+- **Raw helpfulness**: Average of clarity, completeness, relevance, empathy scores
+- **Final helpfulness**: Raw score × scope_penalty_factor (when scope violations occur)
+- **Scope penalties apply to**: Ahimsa, Dharma, AND Helpfulness components
+
+Example: S0 prompt → S2 response gets `scope_penalty_factor = 0.3`, so:
+- Raw helpfulness = 0.8 → Final helpfulness = 0.8 × 0.3 = 0.24
+
 ## Verification Examples
 
 ### Mode Differences

@@ -916,37 +916,60 @@ def helpfulness_reward_trl(prompts: List[str], completions: List[Union[str, List
 
         rewards = []
         for i, result in enumerate(results):
-            # Extract helpfulness score (no penalties in helpfulness)
-            helpfulness_score = result.get("helpfulness_score", 0.0)
+            # Extract helpfulness scores - both raw and final (with scope penalties)
+            final_helpfulness_score = result.get("helpfulness_score", 0.0)  # This includes scope penalties
+
+            # Try to extract raw helpfulness components to calculate raw score
+            clarity = result.get("clarity_score", 0.0)
+            completeness = result.get("completeness_score", 0.0)
+            relevance = result.get("relevance_score", 0.0)
+            empathy = result.get("empathy_score", 0.0)
+            raw_helpfulness_score = (clarity + completeness + relevance + empathy) / 4.0
+
+            # Extract scope penalty factor if available
+            scope_penalty_factor = result.get("scope_penalty_factor", 1.0)
 
             # Calculate what each mode would give
             if ablation_mode == "policy_only":
-                # Helpfulness has no policy penalties, so return neutral values
-                selected_score = 1.0  # Neutral policy compliance signal
-            else:  # ablation_mode == "full" or "reward_only"
-                # Helpfulness scores are already pure LLM evaluations (no penalties applied)
-                # So both "full" and "reward_only" modes use the same scores
-                selected_score = helpfulness_score
+                # Helpfulness has no ahimsa-style penalties, but scope penalties still apply
+                # For policy-only mode, return the scope penalty factor as compliance signal
+                selected_score = scope_penalty_factor
+            elif ablation_mode == "reward_only":
+                # Use raw helpfulness score, bypass scope penalties
+                selected_score = raw_helpfulness_score
+            else:  # ablation_mode == "full"
+                # Use final score (includes scope penalties)
+                selected_score = final_helpfulness_score
 
             rewards.append(selected_score)
 
             # Debug logging for this item
             raw_scores = {
-                "helpfulness": helpfulness_score
+                "clarity": clarity,
+                "completeness": completeness,
+                "relevance": relevance,
+                "empathy": empathy,
+                "raw_average": raw_helpfulness_score
             }
             penalties = {
-                "none": "no penalties in helpfulness"
+                "scope_penalty": scope_penalty_factor,
+                "scope_reduction": 0.0 if scope_penalty_factor == 1.0 else 1.0 - scope_penalty_factor
             }
 
             if ablation_mode == "policy_only":
-                calculation = f"neutral_policy_signal = 1.0 (helpfulness has no policy penalties)"
-            else:  # full or reward_only mode
-                calculation = f"{helpfulness_score:.3f} (same in all modes)"
+                calculation = f"scope_penalty_factor = {scope_penalty_factor:.3f} (LLM scores ignored)"
+                penalties_str = f"{penalties}"
+            elif ablation_mode == "reward_only":
+                calculation = f"({clarity:.3f} + {completeness:.3f} + {relevance:.3f} + {empathy:.3f}) / 4 = {raw_helpfulness_score:.3f} (no penalties)"
+                penalties_str = f"{penalties} (BYPASSED in reward_only mode)"
+            else:  # full mode
+                calculation = f"raw_helpfulness({raw_helpfulness_score:.3f}) × scope_penalty({scope_penalty_factor:.3f}) = {final_helpfulness_score:.3f}"
+                penalties_str = f"{penalties}"
 
             cross_mode_scores = {
-                "full": helpfulness_score,
-                "reward_only": helpfulness_score,
-                "policy_only": 1.0
+                "full": final_helpfulness_score,
+                "reward_only": raw_helpfulness_score,
+                "policy_only": scope_penalty_factor
             }
 
             log_ablation_debug(
@@ -1216,7 +1239,13 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
             a_score = (harm_avoidance + safety_context) / 2.0  # Average of raw Ahimsa components
 
             d_score = d_result.get("domain_adherence_score", 0.0)  # Raw Dharma score
-            h_score = h_result.get("helpfulness_score", 0.0)  # Helpfulness already penalty-free
+
+            # Extract raw helpfulness score (bypass scope penalties)
+            clarity = h_result.get("clarity_score", 0.0)
+            completeness = h_result.get("completeness_score", 0.0)
+            relevance = h_result.get("relevance_score", 0.0)
+            empathy = h_result.get("empathy_score", 0.0)
+            h_score = (clarity + completeness + relevance + empathy) / 4.0  # Raw helpfulness average
 
             # No severity penalties applied
             severity_penalty = 0.0
@@ -1243,9 +1272,10 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
 
             # Calculate what other modes would give for comparison
             scope_penalty_factor = d_result.get("scope_penalty_factor", 1.0)
+            final_helpfulness_score = h_result.get("helpfulness_score", 0.0)  # Final score with scope penalties
             full_mode_score = ((a_result.get("ahimsa_score", 0.0) * weights["ahimsa"]) +
                               (d_result.get("dharma_score", 0.0) * weights["dharma"]) +
-                              (h_score * weights["helpfulness"])) / sum(weights.values())
+                              (final_helpfulness_score * weights["helpfulness"])) / sum(weights.values())
             policy_mode_score = scope_penalty_factor + severity_penalty
 
             cross_mode_scores = {
@@ -1308,14 +1338,22 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
             safety_context = a_result.get("safety_context_score", 0.0)
             a_score = (harm_avoidance + safety_context) / 2.0
             d_score = d_result.get("domain_adherence_score", 0.0)
-            h_score = h_result.get("helpfulness_score", 0.0)
+
+            # Extract raw helpfulness score for reward_only comparison
+            clarity = h_result.get("clarity_score", 0.0)
+            completeness = h_result.get("completeness_score", 0.0)
+            relevance = h_result.get("relevance_score", 0.0)
+            empathy = h_result.get("empathy_score", 0.0)
+            raw_h_score = (clarity + completeness + relevance + empathy) / 4.0
+
+            final_helpfulness_score = h_result.get("helpfulness_score", 0.0)  # Final score with scope penalties
 
             reward_only_score = ((a_score * weights["ahimsa"]) +
                                 (d_score * weights["dharma"]) +
-                                (h_score * weights["helpfulness"])) / sum(weights.values())
+                                (raw_h_score * weights["helpfulness"])) / sum(weights.values())
             full_mode_score = ((a_result.get("ahimsa_score", 0.0) * weights["ahimsa"]) +
                               (d_result.get("dharma_score", 0.0) * weights["dharma"]) +
-                              (h_score * weights["helpfulness"])) / sum(weights.values())
+                              (final_helpfulness_score * weights["helpfulness"])) / sum(weights.values())
 
             cross_mode_scores = {
                 "full": full_mode_score,
@@ -1399,7 +1437,13 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
             safety_context = a_result.get("safety_context_score", 0.0)
             raw_a_score = (harm_avoidance + safety_context) / 2.0
             raw_d_score = d_result.get("domain_adherence_score", 0.0)
-            raw_h_score = h_result.get("helpfulness_score", 0.0)
+
+            # Extract raw helpfulness score for reward_only comparison
+            clarity = h_result.get("clarity_score", 0.0)
+            completeness = h_result.get("completeness_score", 0.0)
+            relevance = h_result.get("relevance_score", 0.0)
+            empathy = h_result.get("empathy_score", 0.0)
+            raw_h_score = (clarity + completeness + relevance + empathy) / 4.0
 
             reward_only_score = ((raw_a_score * weights["ahimsa"]) +
                                 (raw_d_score * weights["dharma"]) +
