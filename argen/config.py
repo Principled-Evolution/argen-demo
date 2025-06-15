@@ -173,6 +173,11 @@ GRPO_CONFIG = {
     "openai_max_concurrent_batch": 3,              # Even lower for batch operations
     "openai_retry_delay": 10,                      # Longer delays between retries
     "openai_max_retries": 5,                       # More retries for rate limits
+
+    # ── Anthropic concurrency settings ────────────────────────────────────
+    "anthropic_max_concurrent_eval": 25,           # Conservative concurrent limit for individual evaluations
+    "anthropic_retry_delay": 5,                    # Retry delay between attempts
+    "anthropic_max_retries": 3,                    # Max retries for rate limits
 }
 
 def get_model_generation_params(temperature: Optional[float] = None) -> Dict[str, Any]:

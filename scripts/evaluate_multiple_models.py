@@ -110,7 +110,7 @@ def parse_arguments():
         type=str,
         choices=["batch", "individual"],
         default="individual",
-        help="Evaluation mode for Gemini evaluator: 'individual' (default, one API call per evaluation) or 'batch' (faster)"
+        help="Evaluation mode: 'individual' (default, one API call per evaluation) or 'batch' (faster). Note: Only Gemini supports batch mode; Anthropic batch mode is disabled due to inconsistency issues."
     )
     parser.add_argument(
         "--generation_batch_size",
@@ -706,6 +706,18 @@ def main():
     if not args.input_json and not args.models:
         print("Error: Either --input-json or --models must be specified")
         sys.exit(1)
+
+    # Special handling for Anthropic batch mode
+    if args.evaluator == "anthropic" and args.eval_mode == "batch":
+        print("\n" + "="*80)
+        print("WARNING: Anthropic batch mode is currently DISABLED")
+        print("="*80)
+        print("Tests comparing individual and batch mode with Gemini showed large")
+        print("inconsistency when multiple scenarios were grouped in 1 API call.")
+        print("Anthropic batch mode is disabled until further testing.")
+        print("Using individual mode instead...")
+        print("="*80 + "\n")
+        args.eval_mode = "individual"
 
     # Create output directory
     output_dir = create_output_directory()
