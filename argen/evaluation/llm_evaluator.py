@@ -391,8 +391,8 @@ async def evaluate_model_with_llm(
         if not anthropic_api_key:
             anthropic_api_key = get_anthropic_api_key()
 
-        # Get concurrency settings for Anthropic
-        max_concurrent = GRPO_CONFIG.get("anthropic_max_concurrent_eval", 25)
+        # Get concurrency settings for Anthropic (use updated conservative limits)
+        max_concurrent = GRPO_CONFIG.get("anthropic_max_concurrent_eval", 5)
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def evaluate_scenario_with_semaphore(i, scenario):
