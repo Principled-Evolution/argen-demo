@@ -21,6 +21,23 @@ GRPO_TRAINING_TEMPERATURE = 0.9             # TRL GRPO training default
 HF_LOCAL_TEMPERATURE = 1.1                  # Local HuggingFace models
 SCENARIO_GEN_TEMPERATURE = 0.7              # Scenario generation default
 
+# Gemini Caching Configuration
+# Note: Gemini 2.0 Flash has a hard API minimum of 4096 tokens for caching.
+# Most evaluation system prompts (~2000 tokens) are below this threshold.
+# Caching is more beneficial for training where we can combine prompts+schemas+examples.
+GEMINI_CACHING_CONFIG = {
+    "enable_caching": True,                  # Master switch for caching - enabled for testing
+    "cache_ttl_hours": 24,                   # Cache time-to-live in hours
+    "min_tokens_for_caching": 128,          # Minimum tokens required for caching (Gemini 2.0 Flash actual minimum - API enforced)
+    "cache_system_prompts": True,            # Cache system prompts (highest ROI)
+    "cache_json_schemas": True,              # Cache JSON schema definitions
+    "fallback_on_cache_error": True,         # Use non-cached calls if caching fails
+    "cache_monitoring": True,                # Enable cache performance monitoring
+    "cache_cleanup_interval_hours": 6,       # How often to clean up expired entries
+    "enable_composite_caching": True,        # Combine system prompt + schema + examples to reach 4096+ tokens
+    "composite_cache_padding": True,         # Add padding text to reach minimum if close to threshold
+}
+
 # Batching configuration (added)
 DEFAULT_GENERATION_BATCH_SIZE = 12 # Adjust based on GPU memory
 
@@ -203,6 +220,51 @@ def get_temperature_config() -> Dict[str, float]:
         "hf_local": HF_LOCAL_TEMPERATURE,
         "scenario_gen": SCENARIO_GEN_TEMPERATURE
     }
+
+def get_gemini_caching_config() -> Dict[str, Any]:
+    """Get Gemini caching configuration."""
+    return GEMINI_CACHING_CONFIG.copy()
+
+def is_gemini_caching_enabled() -> bool:
+    """Check if Gemini caching is enabled."""
+    return GEMINI_CACHING_CONFIG.get("enable_caching", False)
+
+def validate_caching_compatibility(eval_mode: str = None):
+    """
+    Validate that caching configuration is compatible with other settings.
+    Exits with error if incompatible settings are detected.
+
+    Args:
+        eval_mode: Evaluation mode ('individual' or 'batch'), if known
+    """
+    if not is_gemini_caching_enabled():
+        return  # No validation needed if caching is disabled
+
+    # Import here to avoid circular imports
+    try:
+        from argen.reward_functions.gemini_rewards import INCLUDE_REASONING
+        if INCLUDE_REASONING:
+            print("ERROR: Gemini caching is only supported with include_reasoning=False")
+            print("Current settings:")
+            print(f"  - Caching enabled: {is_gemini_caching_enabled()}")
+            print(f"  - Include reasoning: {INCLUDE_REASONING}")
+            print("\nTo fix this:")
+            print("  1. Set GEMINI_CACHING_CONFIG['enable_caching'] = False, OR")
+            print("  2. Set INCLUDE_REASONING = False in gemini_rewards.py")
+            exit(1)
+    except ImportError:
+        pass  # Module not loaded yet, validation will happen later
+
+    # Check for multi-evaluation mode conflicts
+    if eval_mode == "batch":
+        print("ERROR: Gemini caching is not compatible with batch evaluation mode")
+        print("Current settings:")
+        print(f"  - Caching enabled: {is_gemini_caching_enabled()}")
+        print(f"  - Evaluation mode: {eval_mode}")
+        print("\nTo fix this:")
+        print("  1. Set GEMINI_CACHING_CONFIG['enable_caching'] = False, OR")
+        print("  2. Use --eval-mode individual")
+        exit(1)
 
 def get_ablation_mode() -> str:
     """

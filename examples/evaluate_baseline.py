@@ -951,8 +951,14 @@ def main():
 
         if args.evaluator == "gemini":
             from argen.utils.gemini_api_tracker import GeminiAPITracker
+            from argen.utils.gemini_cache_manager import cache_manager
+
             tracker = GeminiAPITracker()
             tracker.print_summary()
+
+            # Print cache performance summary
+            print("\n")
+            cache_manager.print_summary()
 
 
 if __name__ == "__main__":

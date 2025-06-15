@@ -1454,6 +1454,10 @@ def main():
         os.environ["ARGEN_ABLATION_DEBUG"] = "true"
         logger.info("🧪 Ablation debug logging enabled")
 
+    # Validate caching compatibility
+    from argen.config import validate_caching_compatibility
+    validate_caching_compatibility()
+
     # Set the include_reasoning flag for Gemini evaluations
     if args.evaluator == "gemini":
         try:
@@ -2025,6 +2029,16 @@ def main():
         gemini_calls = get_gemini_api_call_count()
         if is_main_process(local_rank=-1):
             print(f"Total Gemini API calls: {gemini_calls}")
+
+            # Display cache performance summary
+            from argen.config import is_gemini_caching_enabled
+            if is_gemini_caching_enabled():
+                from argen.utils.gemini_cache_manager import cache_manager
+                print("\n" + "="*60)
+                print("GEMINI CACHE PERFORMANCE SUMMARY (TRAINING)")
+                print("="*60)
+                cache_manager.print_summary()
+                print("="*60)
 
     # --- ADDED: Clean up distributed process group ---
     if dist.is_initialized():

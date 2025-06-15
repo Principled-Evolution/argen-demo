@@ -18,7 +18,8 @@ from google.generativeai.types.generation_types import BlockedPromptException
 from argen.scope_definitions import SCOPE_SYSTEM_PROMPT, scope_penalty
 from argen.utils.gemini_response_validator import GeminiDharmaResponse
 from argen.utils.gemini_api_wrapper import TrackedGenerativeModel
-from argen.config import GEMINI_EVAL_TEMPERATURE
+from argen.utils.gemini_cache_manager import cache_manager
+from argen.config import GEMINI_EVAL_TEMPERATURE, is_gemini_caching_enabled
 
 # Imports from gemini_rewards (sibling module)
 from argen.reward_functions.gemini_rewards import (
@@ -133,6 +134,13 @@ async def evaluate_dharma_with_gemini(
 
     system_prompt = base_system_prompt + json_format
 
+    # Generate cache key for this system prompt configuration
+    single_cache_key = f"dharma_single_system_prompt_reasoning_{INCLUDE_REASONING}"
+
+    # Record cache request for statistics
+    if is_gemini_caching_enabled():
+        cache_manager.record_request()
+
     user_prompt_content = f"""
     Evaluate the following interaction based on the healthcare assistant's domain duty (healthcare ONLY):
 
@@ -161,27 +169,80 @@ async def evaluate_dharma_with_gemini(
                 from argen.reward_functions.gemini_rewards import create_control_character_retry_prompt
                 current_user_prompt = create_control_character_retry_prompt(user_prompt_content, attempt + 1)
 
-            # Define a synchronous function to make the Gemini API call
-            def make_gemini_call():
+            # Define an async function to make the Gemini API call with caching support
+            async def make_gemini_call_with_caching():
                 # Use Gemini-2.0-flash model
                 model = TrackedGenerativeModel(
                     GEMINI_EVAL_MODEL,
                     generation_config=genai.types.GenerationConfig(temperature=temperature or GEMINI_EVAL_TEMPERATURE)
                 )
 
-                # Create the chat session
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [system_prompt]},
-                    {"role": "model", "parts": ["I understand my role as a domain-scope auditor for a healthcare & health-policy assistant. I'll evaluate the AI response based on whether it stays within the healthcare domain, following the scope rules provided. I'll return my evaluation in the specified JSON format."]}
-                ])
+                # Try to use cached system prompt if caching is enabled
+                if is_gemini_caching_enabled():
+                    from argen.config import get_gemini_caching_config
+                    config = get_gemini_caching_config()
+
+                    if config.get("enable_composite_caching", False):
+                        try:
+                            # Use composite caching
+                            from argen.utils.gemini_cache_manager import cache_manager
+                            cached_content_name = await cache_manager.create_composite_cached_content(
+                                reward_type="dharma",
+                                model_name=GEMINI_EVAL_MODEL
+                            )
+                            if cached_content_name:
+                                # Create chat with cached content
+                                chat = model.start_chat(
+                                    cached_content=cached_content_name,
+                                    history=[
+                                        {"role": "model", "parts": ["I understand my role as a domain-scope auditor for a healthcare & health-policy assistant. I'll evaluate the AI response based on whether it stays within the healthcare domain, following the scope rules provided. I'll return my evaluation in the specified JSON format."]}
+                                    ]
+                                )
+                                logger.debug(f"Using composite cached chat for Dharma single-eval (attempt {attempt + 1})")
+                            else:
+                                # Fallback to regular chat
+                                chat = model.start_chat(history=[
+                                    {"role": "user", "parts": [system_prompt]},
+                                    {"role": "model", "parts": ["I understand my role as a domain-scope auditor for a healthcare & health-policy assistant. I'll evaluate the AI response based on whether it stays within the healthcare domain, following the scope rules provided. I'll return my evaluation in the specified JSON format."]}
+                                ])
+                                logger.debug(f"Composite caching failed, using regular chat for Dharma single-eval (attempt {attempt + 1})")
+                        except Exception as cache_error:
+                            logger.warning(f"Composite caching failed for Dharma single-eval, falling back to regular chat: {cache_error}")
+                            chat = model.start_chat(history=[
+                                {"role": "user", "parts": [system_prompt]},
+                                {"role": "model", "parts": ["I understand my role as a domain-scope auditor for a healthcare & health-policy assistant. I'll evaluate the AI response based on whether it stays within the healthcare domain, following the scope rules provided. I'll return my evaluation in the specified JSON format."]}
+                            ])
+                    else:
+                        # Use individual caching (legacy)
+                        try:
+                            chat = await model.start_cached_chat(
+                                system_prompt=system_prompt,
+                                cache_key=single_cache_key,
+                                history=[
+                                    {"role": "user", "parts": [system_prompt]},
+                                    {"role": "model", "parts": ["I understand my role as a domain-scope auditor for a healthcare & health-policy assistant. I'll evaluate the AI response based on whether it stays within the healthcare domain, following the scope rules provided. I'll return my evaluation in the specified JSON format."]}
+                                ]
+                            )
+                            logger.debug(f"Using individual cached chat for Dharma single-eval (attempt {attempt + 1})")
+                        except Exception as cache_error:
+                            logger.warning(f"Individual caching failed for Dharma single-eval, falling back to regular chat: {cache_error}")
+                            chat = model.start_chat(history=[
+                                {"role": "user", "parts": [system_prompt]},
+                                {"role": "model", "parts": ["I understand my role as a domain-scope auditor for a healthcare & health-policy assistant. I'll evaluate the AI response based on whether it stays within the healthcare domain, following the scope rules provided. I'll return my evaluation in the specified JSON format."]}
+                            ])
+                else:
+                    chat = model.start_chat(history=[
+                        {"role": "user", "parts": [system_prompt]},
+                        {"role": "model", "parts": ["I understand my role as a domain-scope auditor for a healthcare & health-policy assistant. I'll evaluate the AI response based on whether it stays within the healthcare domain, following the scope rules provided. I'll return my evaluation in the specified JSON format."]}
+                    ])
 
                 # Send the user prompt (potentially modified for retries)
                 response = chat.send_message(current_user_prompt)
                 return response.text
 
-            # Run the synchronous function in a thread
+            # Use the async version with caching support
             try:
-                content = await run_in_thread(make_gemini_call)
+                content = await make_gemini_call_with_caching()
             except BlockedPromptException as e:
                 logger.error(f"Gemini Dharma attempt {attempt + 1}: Prompt blocked by Gemini API: {e}")
                 # Return maximum penalty for blocked content
@@ -539,6 +600,13 @@ For example, write "extra # characters" instead of "extra #\\ characters".
         + single_item_json_schema
     )
 
+    # Generate cache key for this system prompt configuration
+    multi_cache_key = f"dharma_multi_system_prompt_reasoning_{INCLUDE_REASONING}"
+
+    # Record cache request for statistics
+    if is_gemini_caching_enabled():
+        cache_manager.record_request()
+
     gemini_input_pairs = []
     for i, item_data in enumerate(single_batch_items):
         if item_data["model_response"] == "GENERATION_FAILED_PLACEHOLDER":
@@ -576,20 +644,40 @@ Input Pairs:
         # Calculate exponential backoff delay
         retry_delay = base_retry_delay * (2 ** attempt)
         try:
-            def make_gemini_call():
+            async def make_gemini_call_with_caching():
                 model = TrackedGenerativeModel(
                     GEMINI_EVAL_MODEL,
                     generation_config=genai.types.GenerationConfig(temperature=temperature or GEMINI_EVAL_TEMPERATURE)
                 )
-                # Model description for Dharma needs to be updated for batch.
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [system_prompt]},
-                    {"role": "model", "parts": ["I understand. I will evaluate each prompt-response pair for domain adherence and return a JSON array of evaluations, maintaining the order and adhering to the schema."]}
-                ])
+
+                # Try to use cached system prompt if caching is enabled
+                if is_gemini_caching_enabled():
+                    try:
+                        chat = await model.start_cached_chat(
+                            system_prompt=system_prompt,
+                            cache_key=multi_cache_key,
+                            history=[
+                                {"role": "user", "parts": [system_prompt]},
+                                {"role": "model", "parts": ["I understand. I will evaluate each prompt-response pair for domain adherence and return a JSON array of evaluations, maintaining the order and adhering to the schema."]}
+                            ]
+                        )
+                        logger.debug(f"Using cached chat for Dharma multi-eval (attempt {attempt + 1})")
+                    except Exception as cache_error:
+                        logger.warning(f"Cache failed for Dharma multi-eval, falling back to regular chat: {cache_error}")
+                        chat = model.start_chat(history=[
+                            {"role": "user", "parts": [system_prompt]},
+                            {"role": "model", "parts": ["I understand. I will evaluate each prompt-response pair for domain adherence and return a JSON array of evaluations, maintaining the order and adhering to the schema."]}
+                        ])
+                else:
+                    chat = model.start_chat(history=[
+                        {"role": "user", "parts": [system_prompt]},
+                        {"role": "model", "parts": ["I understand. I will evaluate each prompt-response pair for domain adherence and return a JSON array of evaluations, maintaining the order and adhering to the schema."]}
+                    ])
+
                 response = chat.send_message(user_prompt_content)
                 return response.text
 
-            gemini_response_text = await run_in_thread(make_gemini_call)
+            gemini_response_text = await make_gemini_call_with_caching()
             if gemini_response_text:
                 if VERBOSE_LOGGING:
                     logger.info(f"[Dharma Multi-Eval DEBUG] Raw Gemini response text (attempt {attempt+1}): {gemini_response_text}")

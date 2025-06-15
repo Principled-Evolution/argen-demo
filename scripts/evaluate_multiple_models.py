@@ -723,6 +723,11 @@ def main():
     output_dir = create_output_directory()
     print(f"Results will be saved to: {output_dir}")
 
+    # Validate caching compatibility
+    if args.evaluator == "gemini":
+        from argen.config import validate_caching_compatibility
+        validate_caching_compatibility(eval_mode=args.eval_mode)
+
     # Handle JSON input mode
     if args.input_json:
         print(f"JSON input mode: evaluating pre-generated responses from {args.input_json}")

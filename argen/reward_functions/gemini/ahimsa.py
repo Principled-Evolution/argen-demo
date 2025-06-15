@@ -17,7 +17,8 @@ from google.generativeai.types.generation_types import BlockedPromptException
 # Import from argen.utils package
 from argen.utils.response_validator import ModelResponseProcessor
 from argen.utils.gemini_api_wrapper import TrackedGenerativeModel
-from argen.config import GEMINI_EVAL_TEMPERATURE
+from argen.utils.gemini_cache_manager import cache_manager
+from argen.config import GEMINI_EVAL_TEMPERATURE, is_gemini_caching_enabled
 from argen.reward_functions.gemini_rewards import (
     run_in_thread,
     configure_gemini,
@@ -66,6 +67,8 @@ async def evaluate_ahimsa_multi_with_gemini(
     """
     Evaluates a single batch of model responses for Ahimsa using one Gemini API call.
     This function assumes single_batch_items is appropriately sized for one API call.
+
+    Now supports Gemini 2.0 Flash context caching for system prompts to reduce input token costs.
 
     Args:
         single_batch_items: A list of dictionaries for a single API call, where each dictionary contains:
@@ -138,6 +141,13 @@ For example, write "extra # characters" instead of "extra #\\ characters".
         + single_item_json_schema
     )
 
+    # Generate cache key for this system prompt configuration
+    cache_key = f"ahimsa_multi_system_prompt_reasoning_{INCLUDE_REASONING}"
+
+    # Record cache request for statistics
+    if is_gemini_caching_enabled():
+        cache_manager.record_request()
+
     # Prepare input for Gemini
     gemini_input_pairs = []
     for i, item_data in enumerate(single_batch_items):
@@ -181,19 +191,41 @@ Input Pairs:
 
     for attempt in range(max_retries):
         try:
-            def make_gemini_call():
+            async def make_gemini_call_with_caching():
                 model = TrackedGenerativeModel(
                     GEMINI_EVAL_MODEL,
                     generation_config=genai.types.GenerationConfig(temperature=temperature or GEMINI_EVAL_TEMPERATURE)
                 )
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [system_prompt]},
-                    {"role": "model", "parts": ["I understand. I will evaluate each prompt-response pair and return a JSON array of evaluations, maintaining the order and adhering to the schema."]}
-                ])
+
+                # Try to use cached system prompt if caching is enabled
+                if is_gemini_caching_enabled():
+                    try:
+                        chat = await model.start_cached_chat(
+                            system_prompt=system_prompt,
+                            cache_key=cache_key,
+                            history=[
+                                {"role": "user", "parts": [system_prompt]},
+                                {"role": "model", "parts": ["I understand. I will evaluate each prompt-response pair and return a JSON array of evaluations, maintaining the order and adhering to the schema."]}
+                            ]
+                        )
+                        logger.debug(f"Using cached chat for Ahimsa multi-eval (attempt {attempt + 1})")
+                    except Exception as cache_error:
+                        logger.warning(f"Cache failed for Ahimsa multi-eval, falling back to regular chat: {cache_error}")
+                        chat = model.start_chat(history=[
+                            {"role": "user", "parts": [system_prompt]},
+                            {"role": "model", "parts": ["I understand. I will evaluate each prompt-response pair and return a JSON array of evaluations, maintaining the order and adhering to the schema."]}
+                        ])
+                else:
+                    chat = model.start_chat(history=[
+                        {"role": "user", "parts": [system_prompt]},
+                        {"role": "model", "parts": ["I understand. I will evaluate each prompt-response pair and return a JSON array of evaluations, maintaining the order and adhering to the schema."]}
+                    ])
+
                 response = chat.send_message(user_prompt_content)
                 return response.text
 
-            gemini_response_text = await run_in_thread(make_gemini_call)
+            # Use the async version with caching support
+            gemini_response_text = await make_gemini_call_with_caching()
             if gemini_response_text:
                 break # Successful call
         except BlockedPromptException as e:
@@ -585,6 +617,13 @@ For example, write "extra # characters" instead of "extra #\\ characters".
     # Complete system prompt with the appropriate response format
     system_prompt = base_system_prompt + "\n\nReturn **only** this JSON schema (no prose):\n\n" + json_format
 
+    # Generate cache key for this system prompt configuration
+    single_cache_key = f"ahimsa_single_system_prompt_reasoning_{INCLUDE_REASONING}"
+
+    # Record cache request for statistics
+    if is_gemini_caching_enabled():
+        cache_manager.record_request()
+
     # Store the tier information for post-evaluation reward calculations
     # but DO NOT send it to the LLM in the prompt
     if original_prompt_meta is None or "tier" not in original_prompt_meta:
@@ -663,26 +702,79 @@ Please provide your evaluation in the specified JSON format.
                 from argen.reward_functions.gemini_rewards import create_control_character_retry_prompt
                 current_user_prompt = create_control_character_retry_prompt(user_prompt_content, attempt + 1)
 
-            # Define a synchronous function to make the Gemini API call
-            def make_gemini_call():
+            # Define an async function to make the Gemini API call with caching support
+            async def make_gemini_call_with_caching():
                 # Use Gemini-2.0-flash model
                 model = TrackedGenerativeModel(
                     GEMINI_EVAL_MODEL,
                     generation_config=genai.types.GenerationConfig(temperature=temperature or GEMINI_EVAL_TEMPERATURE)
                 )
 
-                # Create the chat session
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [system_prompt]},
-                    {"role": "model", "parts": ["I understand my role as a clinical-risk auditor. I'll evaluate the AI response based on its clinical safety and appropriateness, focusing on substantive safety quality rather than boilerplate disclaimers. I'll return my evaluation in the specified JSON format."]}
-                ])
+                # Try to use cached system prompt if caching is enabled
+                if is_gemini_caching_enabled():
+                    from argen.config import get_gemini_caching_config
+                    config = get_gemini_caching_config()
+
+                    if config.get("enable_composite_caching", False):
+                        try:
+                            # Use composite caching
+                            from argen.utils.gemini_cache_manager import cache_manager
+                            cached_content_name = await cache_manager.create_composite_cached_content(
+                                reward_type="ahimsa",
+                                model_name=GEMINI_EVAL_MODEL
+                            )
+                            if cached_content_name:
+                                # Create chat with cached content
+                                chat = model.start_chat(
+                                    cached_content=cached_content_name,
+                                    history=[
+                                        {"role": "model", "parts": ["I understand my role as a clinical-risk auditor. I'll evaluate the AI response based on its clinical safety and appropriateness, focusing on substantive safety quality rather than boilerplate disclaimers. I'll return my evaluation in the specified JSON format."]}
+                                    ]
+                                )
+                                logger.debug(f"Using composite cached chat for Ahimsa single-eval (attempt {attempt + 1})")
+                            else:
+                                # Fallback to regular chat
+                                chat = model.start_chat(history=[
+                                    {"role": "user", "parts": [system_prompt]},
+                                    {"role": "model", "parts": ["I understand my role as a clinical-risk auditor. I'll evaluate the AI response based on its clinical safety and appropriateness, focusing on substantive safety quality rather than boilerplate disclaimers. I'll return my evaluation in the specified JSON format."]}
+                                ])
+                                logger.debug(f"Composite caching failed, using regular chat for Ahimsa single-eval (attempt {attempt + 1})")
+                        except Exception as cache_error:
+                            logger.warning(f"Composite caching failed for Ahimsa single-eval, falling back to regular chat: {cache_error}")
+                            chat = model.start_chat(history=[
+                                {"role": "user", "parts": [system_prompt]},
+                                {"role": "model", "parts": ["I understand my role as a clinical-risk auditor. I'll evaluate the AI response based on its clinical safety and appropriateness, focusing on substantive safety quality rather than boilerplate disclaimers. I'll return my evaluation in the specified JSON format."]}
+                            ])
+                    else:
+                        # Use individual caching (legacy)
+                        try:
+                            chat = await model.start_cached_chat(
+                                system_prompt=system_prompt,
+                                cache_key=single_cache_key,
+                                history=[
+                                    {"role": "user", "parts": [system_prompt]},
+                                    {"role": "model", "parts": ["I understand my role as a clinical-risk auditor. I'll evaluate the AI response based on its clinical safety and appropriateness, focusing on substantive safety quality rather than boilerplate disclaimers. I'll return my evaluation in the specified JSON format."]}
+                                ]
+                            )
+                            logger.debug(f"Using individual cached chat for Ahimsa single-eval (attempt {attempt + 1})")
+                        except Exception as cache_error:
+                            logger.warning(f"Individual caching failed for Ahimsa single-eval, falling back to regular chat: {cache_error}")
+                            chat = model.start_chat(history=[
+                                {"role": "user", "parts": [system_prompt]},
+                                {"role": "model", "parts": ["I understand my role as a clinical-risk auditor. I'll evaluate the AI response based on its clinical safety and appropriateness, focusing on substantive safety quality rather than boilerplate disclaimers. I'll return my evaluation in the specified JSON format."]}
+                            ])
+                else:
+                    chat = model.start_chat(history=[
+                        {"role": "user", "parts": [system_prompt]},
+                        {"role": "model", "parts": ["I understand my role as a clinical-risk auditor. I'll evaluate the AI response based on its clinical safety and appropriateness, focusing on substantive safety quality rather than boilerplate disclaimers. I'll return my evaluation in the specified JSON format."]}
+                    ])
 
                 # Send the user prompt (potentially modified for retries)
                 response = chat.send_message(current_user_prompt)
                 return response.text
 
-            # Run the synchronous function in a thread
-            content = await run_in_thread(make_gemini_call)
+            # Use the async version with caching support
+            content = await make_gemini_call_with_caching()
 
             if VERBOSE_LOGGING and content:
                 logger.info(f"[Ahimsa Multi-Eval DEBUG] Raw response text from Gemini (attempt {attempt + 1}): {content}")
