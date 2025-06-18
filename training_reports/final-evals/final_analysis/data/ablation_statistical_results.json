@@ -1,0 +1,399 @@
+{
+  "baseline_comparisons": {
+    "reward_only": {
+      "claude": {
+        "combined": {
+          "ablation_score": 0.7712150000000001,
+          "baseline_score": 0.7825450000000004,
+          "difference": -0.011330000000000284,
+          "relative_change": -1.447840060316056,
+          "effect_size": {
+            "cohens_d": -0.11330000000000284,
+            "interpretation": "negligible",
+            "magnitude": 0.11330000000000284
+          }
+        },
+        "ahimsa": {
+          "ablation_score": 0.7854999999999994,
+          "baseline_score": 0.8039166666666655,
+          "difference": -0.01841666666666608,
+          "relative_change": -2.29086762724156,
+          "effect_size": {
+            "cohens_d": -0.18416666666666082,
+            "interpretation": "negligible",
+            "magnitude": 0.18416666666666082
+          }
+        },
+        "dharma": {
+          "ablation_score": 0.9386000000000001,
+          "baseline_score": 0.9353000000000001,
+          "difference": 0.0032999999999999696,
+          "relative_change": 0.3528279696354078,
+          "effect_size": {
+            "cohens_d": 0.032999999999999696,
+            "interpretation": "negligible",
+            "magnitude": 0.032999999999999696
+          }
+        },
+        "helpfulness": {
+          "ablation_score": 0.5337499999999998,
+          "baseline_score": 0.5574999999999999,
+          "difference": -0.02375000000000005,
+          "relative_change": -4.260089686098664,
+          "effect_size": {
+            "cohens_d": -0.2375000000000005,
+            "interpretation": "small",
+            "magnitude": 0.2375000000000005
+          }
+        }
+      },
+      "gemini": {
+        "combined": {
+          "ablation_score": 0.8550000000000004,
+          "baseline_score": 0.8599349999999992,
+          "difference": -0.0049349999999988015,
+          "relative_change": -0.5738805839974889,
+          "effect_size": {
+            "cohens_d": -0.049349999999988015,
+            "interpretation": "negligible",
+            "magnitude": 0.049349999999988015
+          }
+        },
+        "ahimsa": {
+          "ablation_score": 0.9142500000000001,
+          "baseline_score": 0.9155000000000004,
+          "difference": -0.0012500000000003064,
+          "relative_change": -0.13653741125071608,
+          "effect_size": {
+            "cohens_d": -0.012500000000003064,
+            "interpretation": "negligible",
+            "magnitude": 0.012500000000003064
+          }
+        },
+        "dharma": {
+          "ablation_score": 0.9105000000000001,
+          "baseline_score": 0.9249,
+          "difference": -0.014399999999999968,
+          "relative_change": -1.5569250729808592,
+          "effect_size": {
+            "cohens_d": -0.14399999999999968,
+            "interpretation": "negligible",
+            "magnitude": 0.14399999999999968
+          }
+        },
+        "helpfulness": {
+          "ablation_score": 0.72175,
+          "baseline_score": 0.7177500000000001,
+          "difference": 0.0039999999999998925,
+          "relative_change": 0.5572971090212319,
+          "effect_size": {
+            "cohens_d": 0.039999999999998925,
+            "interpretation": "negligible",
+            "magnitude": 0.039999999999998925
+          }
+        }
+      }
+    },
+    "policy_only": {
+      "claude": {
+        "combined": {
+          "ablation_score": 0.73653,
+          "baseline_score": 0.7825450000000004,
+          "difference": -0.04601500000000036,
+          "relative_change": -5.880173025193482,
+          "effect_size": {
+            "cohens_d": -0.4601500000000036,
+            "interpretation": "small",
+            "magnitude": 0.4601500000000036
+          }
+        },
+        "ahimsa": {
+          "ablation_score": 0.7948333333333334,
+          "baseline_score": 0.8039166666666655,
+          "difference": -0.009083333333332111,
+          "relative_change": -1.1298849383226441,
+          "effect_size": {
+            "cohens_d": -0.09083333333332111,
+            "interpretation": "negligible",
+            "magnitude": 0.09083333333332111
+          }
+        },
+        "dharma": {
+          "ablation_score": 0.8342,
+          "baseline_score": 0.9353000000000001,
+          "difference": -0.10110000000000008,
+          "relative_change": -10.809365978830328,
+          "effect_size": {
+            "cohens_d": -1.0110000000000008,
+            "interpretation": "large",
+            "magnitude": 1.0110000000000008
+          }
+        },
+        "helpfulness": {
+          "ablation_score": 0.548,
+          "baseline_score": 0.5574999999999999,
+          "difference": -0.009499999999999842,
+          "relative_change": -1.704035874439434,
+          "effect_size": {
+            "cohens_d": -0.09499999999999842,
+            "interpretation": "negligible",
+            "magnitude": 0.09499999999999842
+          }
+        }
+      },
+      "gemini": {
+        "combined": {
+          "ablation_score": 0.7828999999999999,
+          "baseline_score": 0.8599349999999992,
+          "difference": -0.0770349999999993,
+          "relative_change": -8.958235215452257,
+          "effect_size": {
+            "cohens_d": -0.770349999999993,
+            "interpretation": "medium",
+            "magnitude": 0.770349999999993
+          }
+        },
+        "ahimsa": {
+          "ablation_score": 0.8710000000000007,
+          "baseline_score": 0.9155000000000004,
+          "difference": -0.04449999999999976,
+          "relative_change": -4.860731840524275,
+          "effect_size": {
+            "cohens_d": -0.4449999999999976,
+            "interpretation": "small",
+            "magnitude": 0.4449999999999976
+          }
+        },
+        "dharma": {
+          "ablation_score": 0.7669999999999999,
+          "baseline_score": 0.9249,
+          "difference": -0.15790000000000015,
+          "relative_change": -17.072115904422112,
+          "effect_size": {
+            "cohens_d": -1.5790000000000015,
+            "interpretation": "large",
+            "magnitude": 1.5790000000000015
+          }
+        },
+        "helpfulness": {
+          "ablation_score": 0.7160000000000002,
+          "baseline_score": 0.7177500000000001,
+          "difference": -0.0017499999999999183,
+          "relative_change": -0.24381748519678414,
+          "effect_size": {
+            "cohens_d": -0.017499999999999183,
+            "interpretation": "negligible",
+            "magnitude": 0.017499999999999183
+          }
+        }
+      }
+    }
+  },
+  "ablation_comparisons": {
+    "claude": {
+      "combined": {
+        "reward_only_score": 0.7712150000000001,
+        "policy_only_score": 0.73653,
+        "difference": 0.03468500000000008,
+        "relative_difference": 4.709244701505719,
+        "effect_size": {
+          "cohens_d": 0.34685000000000077,
+          "interpretation": "small",
+          "magnitude": 0.34685000000000077
+        },
+        "better_performer": "reward_only"
+      },
+      "ahimsa": {
+        "reward_only_score": 0.7854999999999994,
+        "policy_only_score": 0.7948333333333334,
+        "difference": -0.00933333333333397,
+        "relative_difference": -1.1742503669533197,
+        "effect_size": {
+          "cohens_d": -0.09333333333333971,
+          "interpretation": "negligible",
+          "magnitude": 0.09333333333333971
+        },
+        "better_performer": "policy_only"
+      },
+      "dharma": {
+        "reward_only_score": 0.9386000000000001,
+        "policy_only_score": 0.8342,
+        "difference": 0.10440000000000005,
+        "relative_difference": 12.51498441620715,
+        "effect_size": {
+          "cohens_d": 1.0440000000000005,
+          "interpretation": "large",
+          "magnitude": 1.0440000000000005
+        },
+        "better_performer": "reward_only"
+      },
+      "helpfulness": {
+        "reward_only_score": 0.5337499999999998,
+        "policy_only_score": 0.548,
+        "difference": -0.014250000000000207,
+        "relative_difference": -2.600364963503687,
+        "effect_size": {
+          "cohens_d": -0.14250000000000207,
+          "interpretation": "negligible",
+          "magnitude": 0.14250000000000207
+        },
+        "better_performer": "policy_only"
+      }
+    },
+    "gemini": {
+      "combined": {
+        "reward_only_score": 0.8550000000000004,
+        "policy_only_score": 0.7828999999999999,
+        "difference": 0.0721000000000005,
+        "relative_difference": 9.209349853110295,
+        "effect_size": {
+          "cohens_d": 0.721000000000005,
+          "interpretation": "medium",
+          "magnitude": 0.721000000000005
+        },
+        "better_performer": "reward_only"
+      },
+      "ahimsa": {
+        "reward_only_score": 0.9142500000000001,
+        "policy_only_score": 0.8710000000000007,
+        "difference": 0.043249999999999456,
+        "relative_difference": 4.965556831228407,
+        "effect_size": {
+          "cohens_d": 0.43249999999999456,
+          "interpretation": "small",
+          "magnitude": 0.43249999999999456
+        },
+        "better_performer": "reward_only"
+      },
+      "dharma": {
+        "reward_only_score": 0.9105000000000001,
+        "policy_only_score": 0.7669999999999999,
+        "difference": 0.14350000000000018,
+        "relative_difference": 18.709256844850092,
+        "effect_size": {
+          "cohens_d": 1.4350000000000018,
+          "interpretation": "large",
+          "magnitude": 1.4350000000000018
+        },
+        "better_performer": "reward_only"
+      },
+      "helpfulness": {
+        "reward_only_score": 0.72175,
+        "policy_only_score": 0.7160000000000002,
+        "difference": 0.005749999999999811,
+        "relative_difference": 0.8030726256982973,
+        "effect_size": {
+          "cohens_d": 0.05749999999999811,
+          "interpretation": "negligible",
+          "magnitude": 0.05749999999999811
+        },
+        "better_performer": "reward_only"
+      }
+    }
+  },
+  "consistency_analysis": {
+    "reward_only": {
+      "combined": {
+        "claude_score": 0.7712150000000001,
+        "gemini_score": 0.8550000000000004,
+        "difference": -0.08378500000000033,
+        "relative_difference": -9.799415204678397,
+        "correlation": 0.6008406760158833,
+        "agreement_level": "medium"
+      },
+      "ahimsa": {
+        "claude_score": 0.7854999999999994,
+        "gemini_score": 0.9142500000000001,
+        "difference": -0.1287500000000007,
+        "relative_difference": -14.082581350834092,
+        "correlation": 0.39019884720679043,
+        "agreement_level": "low"
+      },
+      "dharma": {
+        "claude_score": 0.9386000000000001,
+        "gemini_score": 0.9105000000000001,
+        "difference": 0.028100000000000014,
+        "relative_difference": 3.0862163646348173,
+        "correlation": 0.5926356055950408,
+        "agreement_level": "high"
+      },
+      "helpfulness": {
+        "claude_score": 0.5337499999999998,
+        "gemini_score": 0.72175,
+        "difference": -0.18800000000000017,
+        "relative_difference": -26.047800484932477,
+        "correlation": 0.6961354568076644,
+        "agreement_level": "low"
+      }
+    },
+    "policy_only": {
+      "combined": {
+        "claude_score": 0.73653,
+        "gemini_score": 0.7828999999999999,
+        "difference": -0.04636999999999991,
+        "relative_difference": -5.922850938817207,
+        "correlation": 0.49918587856390656,
+        "agreement_level": "medium"
+      },
+      "ahimsa": {
+        "claude_score": 0.7948333333333334,
+        "gemini_score": 0.8710000000000007,
+        "difference": -0.07616666666666727,
+        "relative_difference": -8.744737849215523,
+        "correlation": 0.38523763081133394,
+        "agreement_level": "medium"
+      },
+      "dharma": {
+        "claude_score": 0.8342,
+        "gemini_score": 0.7669999999999999,
+        "difference": 0.06720000000000015,
+        "relative_difference": 8.761408083442001,
+        "correlation": 0.497917878397269,
+        "agreement_level": "medium"
+      },
+      "helpfulness": {
+        "claude_score": 0.548,
+        "gemini_score": 0.7160000000000002,
+        "difference": -0.16800000000000015,
+        "relative_difference": -23.463687150838002,
+        "correlation": 0.5131759891614598,
+        "agreement_level": "low"
+      }
+    }
+  },
+  "degradation_analysis": {
+    "reward_only": {
+      "claude": {
+        "baseline_score": 0.7825450000000004,
+        "ablation_score": 0.7712150000000001,
+        "degradation": 0.011330000000000284,
+        "degradation_percent": 1.447840060316056,
+        "performance_retention": 98.55215993968395
+      },
+      "gemini": {
+        "baseline_score": 0.8599349999999992,
+        "ablation_score": 0.8550000000000004,
+        "degradation": 0.0049349999999988015,
+        "degradation_percent": 0.5738805839974889,
+        "performance_retention": 99.4261194160025
+      }
+    },
+    "policy_only": {
+      "claude": {
+        "baseline_score": 0.7825450000000004,
+        "ablation_score": 0.73653,
+        "degradation": 0.04601500000000036,
+        "degradation_percent": 5.880173025193482,
+        "performance_retention": 94.11982697480651
+      },
+      "gemini": {
+        "baseline_score": 0.8599349999999992,
+        "ablation_score": 0.7828999999999999,
+        "degradation": 0.0770349999999993,
+        "degradation_percent": 8.958235215452257,
+        "performance_retention": 91.04176478454774
+      }
+    }
+  },
+  "analysis_timestamp": "2025-06-18T11:46:48.522364"
+}

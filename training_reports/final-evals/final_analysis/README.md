@@ -54,22 +54,56 @@ final_analysis/
    - Analyzes correlation and ranking agreement
    - Assesses robustness of Claude-based selections
 
+### Ablation Analysis Scripts
+
+7. **`ablation_data_consolidator.py`**
+   - Consolidates reward-only and policy-only ablation evaluations
+   - Validates ablation data completeness and integrity
+   - Generates unified ablation dataset for analysis
+
+8. **`ablation_statistical_analysis.py`**
+   - Performs statistical comparisons between ablations and baseline
+   - Calculates effect sizes and performance degradation
+   - Analyzes reward-only vs policy-only component importance
+
+9. **`ablation_evaluator_consistency.py`**
+   - Validates consistency between Claude and Gemini for ablations
+   - Analyzes systematic bias and correlation patterns
+   - Assesses robustness of ablation findings
+
+10. **`ablation_comprehensive_report.py`**
+    - Generates comprehensive ablation analysis report
+    - Combines statistical analysis with cross-evaluator validation
+    - Provides component importance insights and recommendations
+
 ### Utility Scripts
 
-7. **`run_all_analyses.py`**
-   - Master script to run all analyses in sequence
-   - Handles dependencies and error checking
-   - Generates execution summary
+11. **`run_all_analyses.py`**
+    - Master script to run all analyses in sequence
+    - Handles dependencies and error checking
+    - Generates execution summary
+
+12. **`run_ablation_analyses.py`**
+    - Master script to run all ablation analyses in sequence
+    - Handles ablation-specific dependencies and error checking
+    - Generates ablation execution summary
 
 ## Usage
 
 ### Quick Start
 
-Run all analyses with a single command:
+Run all main analyses with a single command:
 
 ```bash
 cd training_reports/final-evals/final_analysis/scripts/
 python run_all_analyses.py
+```
+
+Run ablation analyses:
+
+```bash
+cd training_reports/final-evals/final_analysis/scripts/
+python run_ablation_analyses.py
 ```
 
 ### Individual Scripts
@@ -94,6 +128,9 @@ python final_evaluation_comprehensive_report.py
 
 # 6. Evaluator consistency (optional)
 python evaluator_consistency_analysis.py
+
+# Ablation analyses (separate suite)
+python run_ablation_analyses.py
 ```
 
 ## Requirements
@@ -109,9 +146,13 @@ python evaluator_consistency_analysis.py
 
 ### Data Requirements
 
-The scripts expect evaluation files in:
+The main analysis scripts expect evaluation files in:
 - `../../claude-runs/` - Claude evaluation JSON files
 - `../../gemini-runs/` - Gemini evaluation JSON files
+
+The ablation analysis scripts expect ablation files in:
+- `../../reward-policy-ablations-claude/` - Claude ablation evaluation JSON files
+- `reward-policy-ablations-gemini/` - Gemini ablation evaluation JSON files
 
 ## Generated Outputs
 
@@ -119,6 +160,10 @@ The scripts expect evaluation files in:
 
 - `consolidated_final_evals.json` - Unified evaluation dataset
 - `model_performance_matrix.csv` - Performance matrix for analysis
+- `consolidated_ablation_evals.json` - Unified ablation dataset
+- `ablation_statistical_results.json` - Ablation statistical analysis results
+- `ablation_consistency_results.json` - Ablation evaluator consistency analysis
+- `ablation_performance_matrix.csv` - Ablation performance comparison matrix
 
 ### Reports (`reports/`)
 
@@ -129,6 +174,10 @@ The scripts expect evaluation files in:
 - `comprehensive_evaluation_report.md` - **Main unified report**
 - `evaluator_consistency_report.md` - Cross-evaluator validation
 - `execution_summary.md` - Analysis execution log
+- `ablation_comprehensive_report.md` - **Main ablation analysis report**
+- `ablation_data_consolidation_report.md` - Ablation data validation
+- `ablation_evaluator_consistency_report.md` - Ablation cross-evaluator validation
+- `ablation_execution_summary.md` - Ablation analysis execution log
 
 ## Key Findings Usage
 
@@ -138,9 +187,10 @@ The scripts expect evaluation files in:
 - **Metric**: Highest `average_combined_score` across all models
 
 ### For Ablation Studies
-- **Use**: Median Seed configuration
+- **Use**: Median Seed configuration (Seed 3)
 - **Purpose**: Fair comparison baseline for reward-only/policy-only models
 - **Rationale**: Avoids cherry-picking best or worst performing seed
+- **Key Finding**: Reward optimization appears more critical than policy optimization
 
 ### For Helpfulness Claims
 - **Use**: Helpful-Champion model
