@@ -27,7 +27,7 @@ The project includes:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Principled-Evolution/argen-demo.git
+git clone https://github.com/kmadan/argen-demo.git
 cd argen-demo
 
 # Initialize the GOPAL submodule
