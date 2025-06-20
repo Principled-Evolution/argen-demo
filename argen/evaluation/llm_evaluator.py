@@ -391,57 +391,92 @@ async def evaluate_model_with_llm(
         if not anthropic_api_key:
             anthropic_api_key = get_anthropic_api_key()
 
-        # Evaluate each scenario individually for Anthropic
-        for i, scenario in enumerate(scenarios):
-            actual_tier = extract_tier_from_compound(scenario.get("tier", "C"))
-            current_prompt_meta = {"tier": actual_tier, "scope": scenario.get("scope")}
+        # Get concurrency settings for Anthropic (use updated conservative limits)
+        max_concurrent = GRPO_CONFIG.get("anthropic_max_concurrent_eval", 5)
+        semaphore = asyncio.Semaphore(max_concurrent)
 
-            # Run all three evaluations concurrently for this scenario
-            ahimsa_task = evaluate_ahimsa_with_anthropic(
-                original_prompts[i], generated_responses[i], anthropic_api_key,
-                current_prompt_meta, anthropic_model
-            )
-            dharma_task = evaluate_dharma_with_anthropic(
-                original_prompts[i], generated_responses[i], anthropic_api_key,
-                current_prompt_meta, anthropic_model
-            )
-            helpfulness_task = evaluate_helpfulness_with_anthropic(
-                original_prompts[i], generated_responses[i], anthropic_api_key,
-                anthropic_model
-            )
+        async def evaluate_scenario_with_semaphore(i, scenario):
+            """Evaluate a single scenario with semaphore control."""
+            async with semaphore:
+                actual_tier = extract_tier_from_compound(scenario.get("tier", "C"))
+                current_prompt_meta = {"tier": actual_tier, "scope": scenario.get("scope")}
 
-            # Wait for all evaluations to complete
-            ahimsa_result, dharma_result, helpfulness_result = await asyncio.gather(
-                ahimsa_task, dharma_task, helpfulness_task, return_exceptions=True
-            )
+                # Run all three evaluations concurrently for this scenario
+                ahimsa_task = evaluate_ahimsa_with_anthropic(
+                    original_prompts[i], generated_responses[i], anthropic_api_key,
+                    current_prompt_meta, anthropic_model
+                )
+                dharma_task = evaluate_dharma_with_anthropic(
+                    original_prompts[i], generated_responses[i], anthropic_api_key,
+                    current_prompt_meta, anthropic_model
+                )
+                helpfulness_task = evaluate_helpfulness_with_anthropic(
+                    original_prompts[i], generated_responses[i], anthropic_api_key,
+                    anthropic_model
+                )
 
-            # Handle exceptions
-            if isinstance(ahimsa_result, Exception):
-                ahimsa_result = {**DEFAULT_EVAL_RESPONSE, "error": f"Ahimsa eval failed: {str(ahimsa_result)}"}
-            if isinstance(dharma_result, Exception):
-                dharma_result = {**DEFAULT_EVAL_RESPONSE, "error": f"Dharma eval failed: {str(dharma_result)}"}
-            if isinstance(helpfulness_result, Exception):
-                helpfulness_result = {**DEFAULT_EVAL_RESPONSE, "error": f"Helpfulness eval failed: {str(helpfulness_result)}"}
+                # Wait for all evaluations to complete
+                ahimsa_result, dharma_result, helpfulness_result = await asyncio.gather(
+                    ahimsa_task, dharma_task, helpfulness_task, return_exceptions=True
+                )
 
-            # Combine results
-            combined_result = {
-                "prompt": original_prompts[i],
-                "response": generated_responses[i],
-                "scenario_id": scenario.get("scenario_id", f"scenario_{i}"),
-                **ahimsa_result,
-                **dharma_result,
-                **helpfulness_result
-            }
+                # Handle exceptions
+                if isinstance(ahimsa_result, Exception):
+                    ahimsa_result = {**DEFAULT_EVAL_RESPONSE, "error": f"Ahimsa eval failed: {str(ahimsa_result)}"}
+                if isinstance(dharma_result, Exception):
+                    dharma_result = {**DEFAULT_EVAL_RESPONSE, "error": f"Dharma eval failed: {str(dharma_result)}"}
+                if isinstance(helpfulness_result, Exception):
+                    helpfulness_result = {**DEFAULT_EVAL_RESPONSE, "error": f"Helpfulness eval failed: {str(helpfulness_result)}"}
 
-            # Calculate combined score
-            combined_score = calculate_combined_score(
-                ahimsa_result.get("ahimsa_score", 0.0),
-                dharma_result.get("dharma_score", 0.0),
-                helpfulness_result.get("helpfulness_score", 0.0)
-            )
-            combined_result["combined_score"] = combined_score
+                # Combine results
+                combined_result = {
+                    "prompt": original_prompts[i],
+                    "response": generated_responses[i],
+                    "scenario_id": scenario.get("scenario_id", f"scenario_{i}"),
+                    **ahimsa_result,
+                    **dharma_result,
+                    **helpfulness_result
+                }
 
-            evaluation_results.append(combined_result)
+                # Calculate combined score
+                combined_score = calculate_combined_score(
+                    ahimsa_result.get("ahimsa_score", 0.0),
+                    dharma_result.get("dharma_score", 0.0),
+                    helpfulness_result.get("helpfulness_score", 0.0)
+                )
+                combined_result["combined_score"] = combined_score
+
+                return combined_result
+
+        # Create tasks for all scenarios and run them concurrently
+        logger.info(f"Anthropic evaluator: Processing {len(scenarios)} scenarios with max concurrency: {max_concurrent}")
+        scenario_tasks = [
+            evaluate_scenario_with_semaphore(i, scenario)
+            for i, scenario in enumerate(scenarios)
+        ]
+
+        # Execute all scenario evaluations concurrently
+        evaluation_results = await asyncio.gather(*scenario_tasks, return_exceptions=True)
+
+        # Handle any exceptions at the scenario level
+        final_results = []
+        for i, result in enumerate(evaluation_results):
+            if isinstance(result, Exception):
+                logger.error(f"Exception in Anthropic evaluation for scenario {i}: {result}")
+                # Create a default result for failed scenarios
+                default_result = {
+                    "prompt": original_prompts[i],
+                    "response": generated_responses[i],
+                    "scenario_id": scenarios[i].get("scenario_id", f"scenario_{i}"),
+                    **DEFAULT_EVAL_RESPONSE,
+                    "error": f"Scenario evaluation failed: {str(result)}",
+                    "combined_score": 0.0
+                }
+                final_results.append(default_result)
+            else:
+                final_results.append(result)
+
+        evaluation_results = final_results
 
     elif evaluator == "gemini":
         # Import Gemini functions

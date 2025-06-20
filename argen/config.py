@@ -43,9 +43,9 @@ ENHANCED_SYSTEM_PROMPT = (
 )
 
 # Dataset paths
-DEFAULT_SCENARIOS_PATH = "data/combined_training_updated.jsonl"
-DEFAULT_VALIDATION_SCENARIOS_PATH = "data/final-2025-05-08/benchmarking_20250507_174208-reevaluated-tiers.jsonl"
-DEFAULT_OUTPUT_BASE = "logs/baseline_openai_results"
+DEFAULT_SCENARIOS_PATH = "data/sample-data/dummy_train.jsonl"
+DEFAULT_VALIDATION_SCENARIOS_PATH = "data/sample-data/dummy_eval.jsonl"
+DEFAULT_OUTPUT_BASE = "output/baseline_results"
 
 # OpenAI Evaluation configuration
 OPENAI_EVAL_MODEL = "gpt-4o-mini"
@@ -79,6 +79,17 @@ REWARD_WEIGHTS = {
     "helpfulness": 0.3
 }
 
+# Ablation study configuration
+ABLATION_MODES = {
+    "full": "Full ArGen system with both LLM-as-judge rewards and policy penalties",
+    "reward_only": "LLM-as-judge rewards only, bypass policy penalties",
+    "policy_only": "Policy penalties only, ignore LLM-as-judge scores"
+}
+DEFAULT_ABLATION_MODE = "full"
+
+# Ablation debug logging configuration
+ABLATION_DEBUG_LOGGING = False
+
 # Wandb logging control - only send metrics, not logs/tables
 WANDB_LOG_TABLES = False          # Disable table/completion logging to wandb
 WANDB_LOG_DEBUG = False           # Disable debug logging to wandb
@@ -106,7 +117,7 @@ PENALTY_CONFIG = {
 # GRPO training configuration
 GRPO_CONFIG = {
     # ── static run settings ───────────────────────────────────────────────────
-    "output_dir": "/mnt/checkpoints/grpo_run",
+    "output_dir": "output/grpo_run",
 
     # ── GRPO hyper-params ────────────────────────────────────────────────────
     "beta": 0.10,                    # stronger KL penalty
@@ -162,6 +173,12 @@ GRPO_CONFIG = {
     "openai_max_concurrent_batch": 3,              # Even lower for batch operations
     "openai_retry_delay": 10,                      # Longer delays between retries
     "openai_max_retries": 5,                       # More retries for rate limits
+
+    # ── Anthropic concurrency settings ────────────────────────────────────
+    "anthropic_max_concurrent_eval": 5,            # Very conservative limit due to 80k tokens/min rate limit
+    "anthropic_max_concurrent_batch": 3,           # Even lower for batch operations
+    "anthropic_retry_delay": 10,                   # Longer delay between retries for rate limits
+    "anthropic_max_retries": 5,                    # More retries for rate limit recovery
 }
 
 def get_model_generation_params(temperature: Optional[float] = None) -> Dict[str, Any]:
@@ -187,6 +204,43 @@ def get_temperature_config() -> Dict[str, float]:
         "hf_local": HF_LOCAL_TEMPERATURE,
         "scenario_gen": SCENARIO_GEN_TEMPERATURE
     }
+
+def get_ablation_mode() -> str:
+    """
+    Get the current ablation mode from environment variable or default.
+
+    Returns:
+        str: The ablation mode ("full", "reward_only", or "policy_only")
+    """
+    mode = os.environ.get("ARGEN_ABLATION_MODE", DEFAULT_ABLATION_MODE).lower()
+    if mode not in ABLATION_MODES:
+        # Log warning and fall back to default
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Invalid ablation mode '{mode}', falling back to '{DEFAULT_ABLATION_MODE}'")
+        mode = DEFAULT_ABLATION_MODE
+    return mode
+
+def validate_ablation_mode(mode: str) -> bool:
+    """
+    Validate if the given ablation mode is supported.
+
+    Args:
+        mode: The ablation mode to validate
+
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    return mode.lower() in ABLATION_MODES
+
+def get_ablation_debug() -> bool:
+    """
+    Get ablation debug mode from environment variable or config.
+
+    Returns:
+        bool: True if ablation debug logging is enabled, False otherwise
+    """
+    return os.environ.get("ARGEN_ABLATION_DEBUG", "false").lower() == "true" or ABLATION_DEBUG_LOGGING
 
 def get_grpo_config(model_name: str = DEFAULT_MODEL_ID) -> Dict[str, Any]:
     """Get GRPO configuration with model name."""

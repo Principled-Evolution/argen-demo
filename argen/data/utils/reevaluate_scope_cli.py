@@ -54,7 +54,7 @@ except ImportError:
 
 # Add project root to path to allow importing from src
 # This is needed when the script is called as a subprocess
-project_root = Path(__file__).resolve().parents[2]  # Go up two levels from src/data_utils/
+project_root = Path(__file__).resolve().parents[3]  # Go up three levels from argen/data/utils/
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
@@ -160,7 +160,7 @@ def load_api_keys():
     # Try to load from .env file if dotenv is available
     if has_dotenv:
         # Check project root .env
-        project_root = Path(__file__).resolve().parents[2]  # Go up two levels from script
+        project_root = Path(__file__).resolve().parents[3]  # Go up three levels from script (argen/data/utils -> project root)
         env_paths = [
             project_root / ".env",
             project_root / ".env.local",

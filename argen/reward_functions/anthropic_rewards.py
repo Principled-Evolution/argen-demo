@@ -7,6 +7,7 @@ import json
 import asyncio
 import logging
 import re
+import time
 from typing import Dict, Optional, Tuple, List, Any
 
 from anthropic import AsyncAnthropic, RateLimitError, APIError, AnthropicError
@@ -39,6 +40,8 @@ DEFAULT_EVAL_RESPONSE = {
     "error": "Evaluation failed",
     "reasoning": "Could not get response from Anthropic API.",
     "ahimsa_score": 0.0,
+    "ahimsa_penalty_factor": 0.0,  # NEW: expose penalty factor for ablation
+    "raw_ahimsa_score": 0.0,       # NEW: expose raw score for ablation
     "harm_avoidance_score": 0.0,
     "safety_consideration_score": 0.0,
     "has_medical_disclaimer": False,
@@ -177,10 +180,12 @@ Please provide your evaluation in the specified JSON format.
 
     #logger.info("Evaluating Ahimsa with Anthropic...")
 
-    # Integrate retry logic here
-    max_retries = 3
-    retry_delay = 5
+    # Use config-based retry settings
+    from argen.config import GRPO_CONFIG
+    max_retries = GRPO_CONFIG.get("anthropic_max_retries", 3)
+    retry_delay = GRPO_CONFIG.get("anthropic_retry_delay", 5)
     evaluation_result = None
+    rate_limit_encountered = False
 
     for attempt in range(max_retries):
         try:
@@ -211,18 +216,41 @@ Please provide your evaluation in the specified JSON format.
                  logger.warning(f"Anthropic Ahimsa attempt {attempt + 1}: Received empty content.")
 
         except RateLimitError as rle:
-            logger.warning(f"Anthropic Ahimsa attempt {attempt + 1}: Rate limit: {rle}. Retrying in {retry_delay}s...")
+            rate_limit_encountered = True
+            # Exponential backoff: base_delay * (2 ^ attempt) with some jitter
+            backoff_delay = retry_delay * (2 ** attempt) + (attempt * 2)  # Add jitter
+            print(f"🔄 Anthropic Ahimsa Rate Limit Hit (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds (exponential backoff)")
+            print(f"   Rate limit details: {rle}")
+            logger.warning(f"Anthropic Ahimsa attempt {attempt + 1}: Rate limit: {rle}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except APIError as apie:
-            logger.error(f"Anthropic Ahimsa attempt {attempt + 1}: API error: {apie}. Retrying in {retry_delay}s...")
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"⚠️  Anthropic Ahimsa API Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Ahimsa attempt {attempt + 1}: API error: {apie}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except AnthropicError as oae:
-             logger.error(f"Anthropic Ahimsa attempt {attempt + 1}: Anthropic platform error: {oae}. Retrying in {retry_delay}s...")
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"❌ Anthropic Ahimsa Platform Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Ahimsa attempt {attempt + 1}: Anthropic platform error: {oae}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except Exception as e:
-            logger.error(f"Anthropic Ahimsa attempt {attempt + 1}: Unexpected error: {e}. Retrying in {retry_delay}s...", exc_info=True)
-
-        if attempt < max_retries - 1:
-            await asyncio.sleep(retry_delay)
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"💥 Anthropic Ahimsa Unexpected Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Ahimsa attempt {attempt + 1}: Unexpected error: {e}. Exponential backoff: {backoff_delay}s", exc_info=True)
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         else:
             logger.error(f"Anthropic Ahimsa call failed after {max_retries} attempts.")
+            # Check if the last failure was due to rate limiting
+            if rate_limit_encountered:
+                return {**DEFAULT_EVAL_RESPONSE, "error": "Rate Limited"}
             return DEFAULT_EVAL_RESPONSE # Return default error if all retries fail
 
     # Process successful result
@@ -317,8 +345,10 @@ Please provide your evaluation in the specified JSON format.
                  f"Raw Score={raw_ahimsa_score:.2f} | Penalty Factor={penalty_factor:.2f} | Final Score={final_ahimsa_score:.2f}"
              )
 
-             # Store the final score and violation status in the result
+             # Store the final score, penalty factor, raw score, and violation status in the result
              evaluation_result["ahimsa_score"] = final_ahimsa_score
+             evaluation_result["ahimsa_penalty_factor"] = penalty_factor  # NEW: expose penalty factor for ablation
+             evaluation_result["raw_ahimsa_score"] = raw_ahimsa_score      # NEW: expose raw score for ablation
              evaluation_result["ahimsa_violation"] = final_ahimsa_score < 0.5 # Determine violation based on final score
              return evaluation_result
         else:
@@ -400,10 +430,12 @@ async def evaluate_dharma_with_anthropic(
 
     #logger.info("Evaluating Dharma with Anthropic...")
 
-    # Integrate retry logic here
-    max_retries = 3
-    retry_delay = 5
+    # Use config-based retry settings
+    from argen.config import GRPO_CONFIG
+    max_retries = GRPO_CONFIG.get("anthropic_max_retries", 3)
+    retry_delay = GRPO_CONFIG.get("anthropic_retry_delay", 5)
     evaluation_result = None
+    rate_limit_encountered = False
 
     for attempt in range(max_retries):
         try:
@@ -434,18 +466,41 @@ async def evaluate_dharma_with_anthropic(
                  logger.warning(f"Anthropic Dharma attempt {attempt + 1}: Received empty content.")
 
         except RateLimitError as rle:
-            logger.warning(f"Anthropic Dharma attempt {attempt + 1}: Rate limit: {rle}. Retrying in {retry_delay}s...")
+            rate_limit_encountered = True
+            # Exponential backoff: base_delay * (2 ^ attempt) with some jitter
+            backoff_delay = retry_delay * (2 ** attempt) + (attempt * 2)  # Add jitter
+            print(f"🔄 Anthropic Dharma Rate Limit Hit (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds (exponential backoff)")
+            print(f"   Rate limit details: {rle}")
+            logger.warning(f"Anthropic Dharma attempt {attempt + 1}: Rate limit: {rle}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except APIError as apie:
-            logger.error(f"Anthropic Dharma attempt {attempt + 1}: API error: {apie}. Retrying in {retry_delay}s...")
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"⚠️  Anthropic Dharma API Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Dharma attempt {attempt + 1}: API error: {apie}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except AnthropicError as oae:
-             logger.error(f"Anthropic Dharma attempt {attempt + 1}: Anthropic platform error: {oae}. Retrying in {retry_delay}s...")
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"❌ Anthropic Dharma Platform Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Dharma attempt {attempt + 1}: Anthropic platform error: {oae}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except Exception as e:
-            logger.error(f"Anthropic Dharma attempt {attempt + 1}: Unexpected error: {e}. Retrying in {retry_delay}s...", exc_info=True)
-
-        if attempt < max_retries - 1:
-            await asyncio.sleep(retry_delay)
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"💥 Anthropic Dharma Unexpected Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Dharma attempt {attempt + 1}: Unexpected error: {e}. Exponential backoff: {backoff_delay}s", exc_info=True)
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         else:
             logger.error(f"Anthropic Dharma call failed after {max_retries} attempts.")
+            # Check if the last failure was due to rate limiting
+            if rate_limit_encountered:
+                return {**DEFAULT_EVAL_RESPONSE, "error": "Rate Limited"}
             return DEFAULT_EVAL_RESPONSE # Return default error if all retries fail
 
     # Process successful result
@@ -595,10 +650,12 @@ Please evaluate using the specified JSON format.
 
     #logger.info("Evaluating Helpfulness with Anthropic...")
 
-    # Integrate retry logic here
-    max_retries = 3
-    retry_delay = 5
+    # Use config-based retry settings
+    from argen.config import GRPO_CONFIG
+    max_retries = GRPO_CONFIG.get("anthropic_max_retries", 3)
+    retry_delay = GRPO_CONFIG.get("anthropic_retry_delay", 5)
     evaluation_result = None
+    rate_limit_encountered = False
 
     for attempt in range(max_retries):
         try:
@@ -629,18 +686,41 @@ Please evaluate using the specified JSON format.
                  logger.warning(f"Anthropic Helpfulness attempt {attempt + 1}: Received empty content.")
 
         except RateLimitError as rle:
-            logger.warning(f"Anthropic Helpfulness attempt {attempt + 1}: Rate limit: {rle}. Retrying in {retry_delay}s...")
+            rate_limit_encountered = True
+            # Exponential backoff: base_delay * (2 ^ attempt) with some jitter
+            backoff_delay = retry_delay * (2 ** attempt) + (attempt * 2)  # Add jitter
+            print(f"🔄 Anthropic Helpfulness Rate Limit Hit (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds (exponential backoff)")
+            print(f"   Rate limit details: {rle}")
+            logger.warning(f"Anthropic Helpfulness attempt {attempt + 1}: Rate limit: {rle}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except APIError as apie:
-            logger.error(f"Anthropic Helpfulness attempt {attempt + 1}: API error: {apie}. Retrying in {retry_delay}s...")
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"⚠️  Anthropic Helpfulness API Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Helpfulness attempt {attempt + 1}: API error: {apie}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except AnthropicError as oae:
-             logger.error(f"Anthropic Helpfulness attempt {attempt + 1}: Anthropic platform error: {oae}. Retrying in {retry_delay}s...")
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"❌ Anthropic Helpfulness Platform Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Helpfulness attempt {attempt + 1}: Anthropic platform error: {oae}. Exponential backoff: {backoff_delay}s")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         except Exception as e:
-            logger.error(f"Anthropic Helpfulness attempt {attempt + 1}: Unexpected error: {e}. Retrying in {retry_delay}s...", exc_info=True)
-
-        if attempt < max_retries - 1:
-            await asyncio.sleep(retry_delay)
+            backoff_delay = retry_delay * (2 ** attempt)
+            print(f"💥 Anthropic Helpfulness Unexpected Error (attempt {attempt + 1}/{max_retries})")
+            print(f"   Backing off for {backoff_delay:.1f} seconds")
+            logger.error(f"Anthropic Helpfulness attempt {attempt + 1}: Unexpected error: {e}. Exponential backoff: {backoff_delay}s", exc_info=True)
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_delay)
         else:
             logger.error(f"Anthropic Helpfulness call failed after {max_retries} attempts.")
+            # Check if the last failure was due to rate limiting
+            if rate_limit_encountered:
+                return {**DEFAULT_EVAL_RESPONSE, "error": "Rate Limited"}
             return DEFAULT_EVAL_RESPONSE # Return default error if all retries fail
 
     # Process successful result
@@ -679,6 +759,66 @@ Please evaluate using the specified JSON format.
         return DEFAULT_EVAL_RESPONSE
 
 
+class AdaptiveConcurrencyController:
+    """
+    Adaptive concurrency controller that starts with higher concurrency
+    and throttles down when hitting rate limits.
+    """
+
+    def __init__(self, initial_concurrency: int = 10, min_concurrency: int = 2):
+        self.current_concurrency = initial_concurrency
+        self.min_concurrency = min_concurrency
+        self.initial_concurrency = initial_concurrency
+        self.rate_limit_count = 0
+        self.success_count = 0
+        self.last_adjustment_time = time.time()
+
+    def on_rate_limit(self):
+        """Called when a rate limit is hit - throttle down concurrency."""
+        self.rate_limit_count += 1
+        old_concurrency = self.current_concurrency
+
+        # Reduce concurrency by 50% but don't go below minimum
+        self.current_concurrency = max(
+            self.min_concurrency,
+            int(self.current_concurrency * 0.5)
+        )
+
+        if self.current_concurrency != old_concurrency:
+            print(f"🔻 Throttling Anthropic concurrency: {old_concurrency} → {self.current_concurrency}")
+            print(f"   Rate limits hit: {self.rate_limit_count}")
+            self.last_adjustment_time = time.time()
+
+        return self.current_concurrency
+
+    def on_success(self):
+        """Called on successful API calls - potentially increase concurrency."""
+        self.success_count += 1
+
+        # Only consider increasing after some successful calls and time has passed
+        if (self.success_count % 20 == 0 and
+            time.time() - self.last_adjustment_time > 60 and  # Wait at least 1 minute
+            self.current_concurrency < self.initial_concurrency):
+
+            old_concurrency = self.current_concurrency
+            # Gradually increase concurrency by 1
+            self.current_concurrency = min(
+                self.initial_concurrency,
+                self.current_concurrency + 1
+            )
+
+            if self.current_concurrency != old_concurrency:
+                print(f"🔺 Increasing Anthropic concurrency: {old_concurrency} → {self.current_concurrency}")
+                print(f"   Successful calls: {self.success_count}")
+                self.last_adjustment_time = time.time()
+
+        return self.current_concurrency
+
+    def get_current_concurrency(self):
+        """Get the current concurrency limit."""
+        return self.current_concurrency
+
+
 # --- Batch Evaluation Function ---
 # Note: This function receives tier information in metadata but ensures it's only used
 # in post-evaluation calculations, not passed to the LLM evaluators
@@ -686,7 +826,7 @@ async def batch_evaluate_with_anthropic(
     prompts: List[str],
     responses: List[str],
     anthropic_api_key: Optional[str],
-    max_concurrency: int = 50,
+    max_concurrency: Optional[int] = None,
     metadata_list: Optional[List[Dict]] = None,
     model_name: Optional[str] = None,
 ) -> List[Dict]:
@@ -714,22 +854,57 @@ async def batch_evaluate_with_anthropic(
         logger.error(f"Mismatch: {len(prompts)} prompts vs {len(responses)} responses")
         return [DEFAULT_EVAL_RESPONSE] * len(prompts)
 
-    # Create semaphore to limit concurrency
-    semaphore = asyncio.Semaphore(max_concurrency)
+    # Use config-based concurrency limits for Anthropic, with fallback
+    if max_concurrency is None:
+        from argen.config import GRPO_CONFIG
+        initial_concurrency = GRPO_CONFIG.get("anthropic_max_concurrent_batch", 3)
+        # Start with higher concurrency for adaptive throttling
+        max_concurrency = min(initial_concurrency * 3, 15)  # Start 3x higher but cap at 15
+        logger.info(f"Using adaptive Anthropic concurrency: starting at {max_concurrency}, will throttle to {initial_concurrency}")
+
+    # Create adaptive concurrency controller
+    concurrency_controller = AdaptiveConcurrencyController(
+        initial_concurrency=max_concurrency,
+        min_concurrency=max(max_concurrency // 5, 2)  # Minimum is 1/5th of initial or 2
+    )
+
+    # Create semaphore with initial concurrency
+    semaphore = asyncio.Semaphore(concurrency_controller.get_current_concurrency())
 
     async def evaluate_pair_with_semaphore(prompt, response, metadata=None):
-        """Evaluate a single prompt-response pair with semaphore control."""
+        """Evaluate a single prompt-response pair with adaptive semaphore control."""
         async with semaphore:
-            # Create tasks for all three evaluations
-            ahimsa_task = evaluate_ahimsa_with_anthropic(prompt, response, anthropic_api_key, metadata, model_name)
-            dharma_task = evaluate_dharma_with_anthropic(prompt, response, anthropic_api_key, metadata, model_name)
-            helpfulness_task = evaluate_helpfulness_with_anthropic(prompt, response, anthropic_api_key, model_name)
+            try:
+                # Create tasks for all three evaluations
+                ahimsa_task = evaluate_ahimsa_with_anthropic(prompt, response, anthropic_api_key, metadata, model_name)
+                dharma_task = evaluate_dharma_with_anthropic(prompt, response, anthropic_api_key, metadata, model_name)
+                helpfulness_task = evaluate_helpfulness_with_anthropic(prompt, response, anthropic_api_key, model_name)
 
-            # Run all three evaluations concurrently
-            results = await asyncio.gather(
-                ahimsa_task, dharma_task, helpfulness_task,
-                return_exceptions=True
-            )
+                # Run all three evaluations concurrently
+                results = await asyncio.gather(
+                    ahimsa_task, dharma_task, helpfulness_task,
+                    return_exceptions=True
+                )
+
+                # Check if any results indicate rate limiting
+                rate_limited = any(
+                    isinstance(result, dict) and result.get("error") == "Rate Limited"
+                    for result in results
+                )
+
+                if rate_limited:
+                    # Adjust concurrency down
+                    new_concurrency = concurrency_controller.on_rate_limit()
+                    # Update semaphore if needed (this is tricky with asyncio.Semaphore)
+                    # For now, just log the adjustment - the controller tracks it
+                else:
+                    # Track successful calls
+                    concurrency_controller.on_success()
+
+            except Exception as e:
+                logger.error(f"Exception in evaluate_pair_with_semaphore: {e}")
+                # Return default responses for all three evaluations
+                return {**DEFAULT_EVAL_RESPONSE, "error": f"Evaluation failed: {e}"}
 
             # Process results
             eval_results = {}

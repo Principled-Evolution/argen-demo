@@ -726,7 +726,7 @@ def main():
         type=str,
         choices=["batch", "individual"],
         default="individual",
-        help="Evaluation mode for Gemini evaluator: 'individual' (default, one API call per evaluation) or 'batch' (faster)"
+        help="Evaluation mode: 'individual' (default, one API call per evaluation) or 'batch' (faster). Note: Only Gemini supports batch mode; Anthropic batch mode is disabled due to inconsistency issues."
     )
     parser.add_argument(
         "--include-reasoning",
@@ -787,9 +787,21 @@ def main():
     # Validate eval mode (only if explicitly provided and not using default)
     # Check if --eval-mode was explicitly provided by checking if it's different from default when using non-gemini evaluator
     eval_mode_explicitly_provided = "--eval-mode" in sys.argv
-    if eval_mode_explicitly_provided and args.evaluator != "gemini":
-        print("Error: --eval-mode can only be used with --evaluator gemini")
+    if eval_mode_explicitly_provided and args.evaluator not in ["gemini", "anthropic"]:
+        print(f"Error: --eval-mode can only be used with --evaluator gemini or anthropic")
         sys.exit(1)
+
+    # Special handling for Anthropic batch mode
+    if args.evaluator == "anthropic" and eval_mode_explicitly_provided and args.eval_mode == "batch":
+        print("\n" + "="*80)
+        print("WARNING: Anthropic batch mode is currently DISABLED")
+        print("="*80)
+        print("Tests comparing individual and batch mode with Gemini showed large")
+        print("inconsistency when multiple scenarios were grouped in 1 API call.")
+        print("Anthropic batch mode is disabled until further testing.")
+        print("Using individual mode instead...")
+        print("="*80 + "\n")
+        args.eval_mode = "individual"
 
     # Load environment variables early
     load_env_vars()

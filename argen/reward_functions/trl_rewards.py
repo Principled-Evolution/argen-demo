@@ -18,6 +18,110 @@ import numpy as np
 logger = logging.getLogger(__name__)
 VERBOSE_LOGGING = False
 
+def log_ablation_debug(mode: str, item_idx: int, batch_size: int,
+                      raw_scores: Dict, penalties: Dict,
+                      selected_score: float, calculation: str,
+                      cross_mode_scores: Optional[Dict] = None,
+                      component: Optional[str] = None):
+    """
+    Helper function for consistent ablation debug logging.
+
+    Args:
+        mode: Current ablation mode
+        item_idx: Index of current item in batch (0-based)
+        batch_size: Total batch size
+        raw_scores: Dictionary of raw LLM scores
+        penalties: Dictionary of penalty factors
+        selected_score: The final selected score
+        calculation: String describing the calculation
+        cross_mode_scores: Optional dict showing what other modes would give
+        component: Optional component name for separate rewards mode
+    """
+    from argen.config import get_ablation_debug
+    if not get_ablation_debug():
+        return
+
+    component_str = f" | Component: {component}" if component else " | Combined Calculation"
+    logger.info(f"🧪 ABLATION DEBUG [Batch Item {item_idx+1}/{batch_size}] Mode: {mode}{component_str}")
+    logger.info(f"   Raw LLM Scores: {raw_scores}")
+    logger.info(f"   Policy Penalties: {penalties}")
+    logger.info(f"   Calculation: {calculation}")
+    logger.info(f"   ✅ SELECTED: {selected_score:.3f}")
+
+    if cross_mode_scores:
+        cross_mode_str = ", ".join([f"{k.replace('_', '-').title()} Would Give: {v:.3f}"
+                                   for k, v in cross_mode_scores.items() if k != mode])
+        if cross_mode_str:
+            logger.info(f"   {cross_mode_str}")
+
+def log_ablation_summary(mode: str, item_idx: int, batch_size: int,
+                        component_scores: Dict, weights: Dict,
+                        final_combined: float, cross_mode_scores: Optional[Dict] = None):
+    """
+    Helper function for ablation summary logging in separate rewards mode.
+
+    Args:
+        mode: Current ablation mode
+        item_idx: Index of current item in batch (0-based)
+        batch_size: Total batch size
+        component_scores: Dictionary of component scores (A, D, H)
+        weights: Dictionary of component weights
+        final_combined: Final combined score
+        cross_mode_scores: Optional dict showing what other modes would give
+    """
+    from argen.config import get_ablation_debug
+    if not get_ablation_debug():
+        return
+
+    logger.info(f"🧪 ABLATION SUMMARY [Batch Item {item_idx+1}/{batch_size}] Mode: {mode}")
+    logger.info(f"   Component Scores: A={component_scores.get('ahimsa', 0):.3f}, "
+               f"D={component_scores.get('dharma', 0):.3f}, H={component_scores.get('helpfulness', 0):.3f}")
+    logger.info(f"   Weights: A={weights.get('ahimsa', 0):.1f}, "
+               f"D={weights.get('dharma', 0):.1f}, H={weights.get('helpfulness', 0):.1f}")
+    logger.info(f"   Final Combined: {final_combined:.3f}")
+
+    if cross_mode_scores:
+        cross_mode_str = ", ".join([f"{k.replace('_', '-').title()} Would Give: {v:.3f}"
+                                   for k, v in cross_mode_scores.items() if k != mode])
+        if cross_mode_str:
+            logger.info(f"   {cross_mode_str}")
+
+def log_batch_ablation_summary(mode: str, batch_size: int,
+                               ahimsa_scores: List[float],
+                               dharma_scores: List[float],
+                               helpfulness_scores: List[float]):
+    """
+    Helper function for batch-level ablation summary logging.
+
+    Args:
+        mode: Current ablation mode
+        batch_size: Total batch size
+        ahimsa_scores: List of ahimsa scores for the batch
+        dharma_scores: List of dharma scores for the batch
+        helpfulness_scores: List of helpfulness scores for the batch
+    """
+    from argen.config import get_ablation_debug, REWARD_WEIGHTS
+    if not get_ablation_debug():
+        return
+
+    # Calculate batch statistics
+    import numpy as np
+
+    # Calculate combined scores for this mode
+    combined_scores = []
+    for a, d, h in zip(ahimsa_scores, dharma_scores, helpfulness_scores):
+        combined = (a * REWARD_WEIGHTS["ahimsa"] +
+                   d * REWARD_WEIGHTS["dharma"] +
+                   h * REWARD_WEIGHTS["helpfulness"])
+        combined_scores.append(combined)
+
+    logger.info(f"🧪 BATCH ABLATION SUMMARY [Batch Size: {batch_size}] Mode: {mode}")
+    logger.info(f"   Ahimsa: mean={np.mean(ahimsa_scores):.3f}, std={np.std(ahimsa_scores):.3f}, range=[{np.min(ahimsa_scores):.3f}, {np.max(ahimsa_scores):.3f}]")
+    logger.info(f"   Dharma: mean={np.mean(dharma_scores):.3f}, std={np.std(dharma_scores):.3f}, range=[{np.min(dharma_scores):.3f}, {np.max(dharma_scores):.3f}]")
+    logger.info(f"   Helpfulness: mean={np.mean(helpfulness_scores):.3f}, std={np.std(helpfulness_scores):.3f}, range=[{np.min(helpfulness_scores):.3f}, {np.max(helpfulness_scores):.3f}]")
+    logger.info(f"   Combined: mean={np.mean(combined_scores):.3f}, std={np.std(combined_scores):.3f}, range=[{np.min(combined_scores):.3f}, {np.max(combined_scores):.3f}]")
+    logger.info(f"   Mode Behavior: {mode} - {'LLM scores only' if mode == 'reward_only' else 'Policy penalties only' if mode == 'policy_only' else 'LLM scores × policy penalties'}")
+
 # Default error response
 DEFAULT_EVAL_RESPONSE = {
     "error": "Evaluation failed",
@@ -71,6 +175,32 @@ _audit_log_data_by_step = {}  # Store audit data by step number for timing indep
 
 # Configuration for the check (can be moved to a config file)
 VERIFY_HASH_SAMPLE_RATE = 0.1 # Check 10% of items per batch
+
+# Batch summary coordination for separate rewards mode
+_batch_component_scores = {}
+_batch_ablation_mode = None
+
+def _store_component_scores_for_batch_summary(component: str, scores: List[float], mode: str):
+    """Store component scores for batch summary logging coordination."""
+    global _batch_component_scores, _batch_ablation_mode
+
+    _batch_component_scores[component] = scores
+    _batch_ablation_mode = mode
+
+    # Check if we have all three components
+    if len(_batch_component_scores) == 3 and all(k in _batch_component_scores for k in ["ahimsa", "dharma", "helpfulness"]):
+        # Log batch summary
+        log_batch_ablation_summary(
+            mode=_batch_ablation_mode,
+            batch_size=len(scores),
+            ahimsa_scores=_batch_component_scores["ahimsa"],
+            dharma_scores=_batch_component_scores["dharma"],
+            helpfulness_scores=_batch_component_scores["helpfulness"]
+        )
+
+        # Clear for next batch
+        _batch_component_scores.clear()
+        _batch_ablation_mode = None
 
 def populate_audit_log_data(
     prompts: List[str],
@@ -166,6 +296,10 @@ def populate_audit_log_data(
         # Extract helpfulness constituent scores for detailed logging
         h_result_details = helpfulness_results[i] if i < len(helpfulness_results) else {}
 
+        # Get ablation mode for audit logging
+        from argen.config import get_ablation_mode
+        ablation_mode = get_ablation_mode()
+
         # Create audit entry
         audit_entry = {
             "prompt": prompts[i],
@@ -180,7 +314,9 @@ def populate_audit_log_data(
             "helpfulness_empathy": h_result_details.get("empathy_score"),
             "combined_reward": combined,
             "severity_penalty": severity_penalty,
-            "scope_penalty_factor": scope_penalty_factor
+            "scope_penalty_factor": scope_penalty_factor,
+            "ablation_mode": ablation_mode,
+            "reward_calculation_mode": ablation_mode
         }
         _audit_log_data.append(audit_entry)
 
@@ -262,9 +398,86 @@ def ahimsa_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict
             **kwargs
         )
 
-        # Extract scores and return
-        rewards = [result.get("ahimsa_score", 0.0) for result in results]
-        logger.info(f"ahimsa_reward_trl: Returning {len(rewards)} scores from shared coordinator")
+        # Extract scores with ablation mode support
+        from argen.config import get_ablation_mode, REWARD_WEIGHTS
+        ablation_mode = get_ablation_mode()
+
+        rewards = []
+        for i, result in enumerate(results):
+            # Extract all available scores for debug logging
+            harm_avoidance = result.get("harm_avoidance_score", 0.0)
+            safety_context = result.get("safety_context_score", 0.0)
+            raw_score = (harm_avoidance + safety_context) / 2.0
+            penalty_factor = result.get("ahimsa_penalty_factor", 1.0)
+            final_score = result.get("ahimsa_score", 0.0)
+
+            # Calculate what each mode would give
+            full_mode_score = final_score
+            reward_only_score = raw_score
+            policy_only_score = penalty_factor
+
+            # Select score based on ablation mode
+            if ablation_mode == "reward_only":
+                selected_score = reward_only_score
+            elif ablation_mode == "policy_only":
+                selected_score = policy_only_score
+            else:  # ablation_mode == "full"
+                selected_score = full_mode_score
+
+            rewards.append(selected_score)
+
+            # Debug logging for this item
+            raw_scores = {
+                "harm_avoidance": harm_avoidance,
+                "safety_context": safety_context,
+                "raw_average": raw_score
+            }
+            penalties = {
+                "ahimsa_penalty": penalty_factor,
+                "severity": 0.0 if penalty_factor == 1.0 else 1.0 - penalty_factor
+            }
+
+            if ablation_mode == "reward_only":
+                calculation = f"({harm_avoidance:.3f} + {safety_context:.3f}) / 2 = {raw_score:.3f} (no penalties)"
+                penalties_str = f"{penalties} (BYPASSED in reward_only mode)"
+            elif ablation_mode == "policy_only":
+                calculation = f"penalty_factor = {penalty_factor:.3f} (LLM scores ignored)"
+                penalties_str = f"{penalties}"
+            else:  # full mode
+                calculation = f"({harm_avoidance:.3f} + {safety_context:.3f}) / 2 × {penalty_factor:.3f} = {final_score:.3f}"
+                penalties_str = f"{penalties}"
+
+            cross_mode_scores = {
+                "full": full_mode_score,
+                "reward_only": reward_only_score,
+                "policy_only": policy_only_score
+            }
+
+            log_ablation_debug(
+                mode=ablation_mode,
+                item_idx=i,
+                batch_size=len(results),
+                raw_scores=raw_scores,
+                penalties=penalties_str,
+                selected_score=selected_score,
+                calculation=calculation,
+                cross_mode_scores=cross_mode_scores,
+                component="Ahimsa"
+            )
+
+            # Add weighted contribution info for separate rewards mode
+            weighted_contribution = selected_score * REWARD_WEIGHTS["ahimsa"]
+            from argen.config import get_ablation_debug
+            if get_ablation_debug():
+                logger.info(f"   Final Weighted Contribution: {selected_score:.3f} × {REWARD_WEIGHTS['ahimsa']:.1f} = {weighted_contribution:.3f}")
+
+        logger.info(f"ahimsa_reward_trl: Returning {len(rewards)} scores (ablation mode: {ablation_mode})")
+
+        # Store scores for potential batch summary logging
+        # This will be used by a coordination mechanism to log batch summaries
+        # when all three reward functions have completed
+        _store_component_scores_for_batch_summary("ahimsa", rewards, ablation_mode)
+
         return rewards
 
     # ── sanity-check that we really got G completions per prompt ──
@@ -440,9 +653,80 @@ def dharma_reward_trl(prompts: List[str], completions: List[Union[str, List[Dict
             **kwargs
         )
 
-        # Extract scores and return
-        rewards = [result.get("dharma_score", 0.0) for result in results]
-        logger.info(f"dharma_reward_trl: Returning {len(rewards)} scores from shared coordinator")
+        # Extract scores with ablation mode support
+        from argen.config import get_ablation_mode, REWARD_WEIGHTS
+        ablation_mode = get_ablation_mode()
+
+        rewards = []
+        for i, result in enumerate(results):
+            # Extract all available scores for debug logging
+            raw_score = result.get("domain_adherence_score", 0.0)
+            penalty_factor = result.get("scope_penalty_factor", 1.0)
+            final_score = result.get("dharma_score", 0.0)
+
+            # Calculate what each mode would give
+            full_mode_score = final_score
+            reward_only_score = raw_score
+            policy_only_score = penalty_factor
+
+            # Select score based on ablation mode
+            if ablation_mode == "reward_only":
+                selected_score = reward_only_score
+            elif ablation_mode == "policy_only":
+                selected_score = policy_only_score
+            else:  # ablation_mode == "full"
+                selected_score = full_mode_score
+
+            rewards.append(selected_score)
+
+            # Debug logging for this item
+            raw_scores = {
+                "domain_adherence": raw_score
+            }
+            penalties = {
+                "scope_penalty": penalty_factor,
+                "scope_reduction": 0.0 if penalty_factor == 1.0 else 1.0 - penalty_factor
+            }
+
+            if ablation_mode == "reward_only":
+                calculation = f"{raw_score:.3f} (raw LLM score, no penalties)"
+                penalties_str = f"{penalties} (BYPASSED in reward_only mode)"
+            elif ablation_mode == "policy_only":
+                calculation = f"scope_penalty_factor = {penalty_factor:.3f} (LLM scores ignored)"
+                penalties_str = f"{penalties}"
+            else:  # full mode
+                calculation = f"{raw_score:.3f} × {penalty_factor:.3f} = {final_score:.3f}"
+                penalties_str = f"{penalties}"
+
+            cross_mode_scores = {
+                "full": full_mode_score,
+                "reward_only": reward_only_score,
+                "policy_only": policy_only_score
+            }
+
+            log_ablation_debug(
+                mode=ablation_mode,
+                item_idx=i,
+                batch_size=len(results),
+                raw_scores=raw_scores,
+                penalties=penalties_str,
+                selected_score=selected_score,
+                calculation=calculation,
+                cross_mode_scores=cross_mode_scores,
+                component="Dharma"
+            )
+
+            # Add weighted contribution info for separate rewards mode
+            weighted_contribution = selected_score * REWARD_WEIGHTS["dharma"]
+            from argen.config import get_ablation_debug
+            if get_ablation_debug():
+                logger.info(f"   Final Weighted Contribution: {selected_score:.3f} × {REWARD_WEIGHTS['dharma']:.1f} = {weighted_contribution:.3f}")
+
+        logger.info(f"dharma_reward_trl: Returning {len(rewards)} scores (ablation mode: {ablation_mode})")
+
+        # Store scores for potential batch summary logging
+        _store_component_scores_for_batch_summary("dharma", rewards, ablation_mode)
+
         return rewards
 
     # Process completions to extract content from chat responses
@@ -626,9 +910,91 @@ def helpfulness_reward_trl(prompts: List[str], completions: List[Union[str, List
             **kwargs
         )
 
-        # Extract scores and return
-        rewards = [result.get("helpfulness_score", 0.0) for result in results]
-        logger.info(f"helpfulness_reward_trl: Returning {len(rewards)} scores from shared coordinator")
+        # Extract scores with ablation mode support
+        from argen.config import get_ablation_mode, REWARD_WEIGHTS
+        ablation_mode = get_ablation_mode()
+
+        rewards = []
+        for i, result in enumerate(results):
+            # Extract helpfulness scores - both raw and final (with scope penalties)
+            final_helpfulness_score = result.get("helpfulness_score", 0.0)  # This includes scope penalties
+
+            # Try to extract raw helpfulness components to calculate raw score
+            clarity = result.get("clarity_score", 0.0)
+            completeness = result.get("completeness_score", 0.0)
+            relevance = result.get("relevance_score", 0.0)
+            empathy = result.get("empathy_score", 0.0)
+            raw_helpfulness_score = (clarity + completeness + relevance + empathy) / 4.0
+
+            # Extract scope penalty factor if available
+            scope_penalty_factor = result.get("scope_penalty_factor", 1.0)
+
+            # Calculate what each mode would give
+            if ablation_mode == "policy_only":
+                # Helpfulness has no ahimsa-style penalties, but scope penalties still apply
+                # For policy-only mode, return the scope penalty factor as compliance signal
+                selected_score = scope_penalty_factor
+            elif ablation_mode == "reward_only":
+                # Use raw helpfulness score, bypass scope penalties
+                selected_score = raw_helpfulness_score
+            else:  # ablation_mode == "full"
+                # Use final score (includes scope penalties)
+                selected_score = final_helpfulness_score
+
+            rewards.append(selected_score)
+
+            # Debug logging for this item
+            raw_scores = {
+                "clarity": clarity,
+                "completeness": completeness,
+                "relevance": relevance,
+                "empathy": empathy,
+                "raw_average": raw_helpfulness_score
+            }
+            penalties = {
+                "scope_penalty": scope_penalty_factor,
+                "scope_reduction": 0.0 if scope_penalty_factor == 1.0 else 1.0 - scope_penalty_factor
+            }
+
+            if ablation_mode == "policy_only":
+                calculation = f"scope_penalty_factor = {scope_penalty_factor:.3f} (LLM scores ignored)"
+                penalties_str = f"{penalties}"
+            elif ablation_mode == "reward_only":
+                calculation = f"({clarity:.3f} + {completeness:.3f} + {relevance:.3f} + {empathy:.3f}) / 4 = {raw_helpfulness_score:.3f} (no penalties)"
+                penalties_str = f"{penalties} (BYPASSED in reward_only mode)"
+            else:  # full mode
+                calculation = f"raw_helpfulness({raw_helpfulness_score:.3f}) × scope_penalty({scope_penalty_factor:.3f}) = {final_helpfulness_score:.3f}"
+                penalties_str = f"{penalties}"
+
+            cross_mode_scores = {
+                "full": final_helpfulness_score,
+                "reward_only": raw_helpfulness_score,
+                "policy_only": scope_penalty_factor
+            }
+
+            log_ablation_debug(
+                mode=ablation_mode,
+                item_idx=i,
+                batch_size=len(results),
+                raw_scores=raw_scores,
+                penalties=penalties,
+                selected_score=selected_score,
+                calculation=calculation,
+                cross_mode_scores=cross_mode_scores,
+                component="Helpfulness"
+            )
+
+            # Add weighted contribution info for separate rewards mode
+            weighted_contribution = selected_score * REWARD_WEIGHTS["helpfulness"]
+            from argen.config import get_ablation_debug
+            if get_ablation_debug():
+                logger.info(f"   Final Weighted Contribution: {selected_score:.3f} × {REWARD_WEIGHTS['helpfulness']:.1f} = {weighted_contribution:.3f}")
+
+        logger.info(f"helpfulness_reward_trl: Returning {len(rewards)} scores (ablation mode: {ablation_mode})")
+
+        # Store scores for potential batch summary logging
+        _store_component_scores_for_batch_summary("helpfulness", rewards, ablation_mode)
+
         return rewards
 
     # Process completions to extract content from chat responses
@@ -756,6 +1122,7 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
     Populates _audit_log_data for logging by the callback.
     Includes random hash verification.
     Supports both OpenAI and Gemini evaluators.
+    Supports ablation study modes: full, reward_only, policy_only.
 
     Args:
         prompts: List of user prompts
@@ -765,6 +1132,15 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
     Returns:
         List of combined reward scores
     """
+    # Add ablation mode detection at the beginning
+    from argen.config import get_ablation_mode, ABLATION_MODES
+    ablation_mode = get_ablation_mode()
+
+    logger.info(f"🔍 Running combined_reward_trl in ablation mode: {ablation_mode}")
+    if ablation_mode != "full":
+        logger.info(f"🧪 Ablation mode active: {ablation_mode}")
+        logger.info(f"📊 Expected behavior: {ABLATION_MODES[ablation_mode]}")
+
     # Process completions to extract content from chat responses
     processed_completions = process_completions(completions)
 
@@ -851,53 +1227,245 @@ def combined_reward_trl(prompts: List[str], completions: List[Union[str, List[Di
     logger.info(f"🔍 DEBUG: _audit_log_data id = {id(_audit_log_data)}, current length = {len(_audit_log_data)}")
 
     for i, (a_result, d_result, h_result) in enumerate(zip(ahimsa_results, dharma_results, helpfulness_results)):
-        a_score = a_result.get("ahimsa_score", 0.0)
-        d_score = d_result.get("dharma_score", 0.0)
-        h_score = h_result.get("helpfulness_score", 0.0)
-
         if VERBOSE_LOGGING and evaluator == "gemini":
             logger.info(f"[combined_reward_trl DEBUG] Item {i}: Ahimsa result object: {json.dumps(a_result, indent=2)}")
-            logger.info(f"[combined_reward_trl DEBUG] Item {i}: Extracted Ahimsa score: {a_score}")
 
-        # Get scope penalty factor if available
-        scope_penalty_factor = d_result.get("scope_penalty_factor", 1.0)
+        # Implement ablation mode-specific reward calculation
+        if ablation_mode == "reward_only":
+            # Use only LLM-as-judge scores, bypass all policy penalties
+            # Extract raw LLM scores without penalty factors
+            harm_avoidance = a_result.get("harm_avoidance_score", 0.0)
+            safety_context = a_result.get("safety_context_score", 0.0)
+            a_score = (harm_avoidance + safety_context) / 2.0  # Average of raw Ahimsa components
 
-        # Apply scope penalty to all component scores if needed
-        if scope_penalty_factor < 1.0:
-            # Apply scope penalty to ahimsa and helpfulness scores
-            a_score = a_score * scope_penalty_factor
-            h_score = h_score * scope_penalty_factor
+            d_score = d_result.get("domain_adherence_score", 0.0)  # Raw Dharma score
 
-            # Log the scope penalty application
-            logger.info(f"Applied scope penalty factor {scope_penalty_factor:.2f} to all component scores")
+            # Extract raw helpfulness score (bypass scope penalties)
+            clarity = h_result.get("clarity_score", 0.0)
+            completeness = h_result.get("completeness_score", 0.0)
+            relevance = h_result.get("relevance_score", 0.0)
+            empathy = h_result.get("empathy_score", 0.0)
+            h_score = (clarity + completeness + relevance + empathy) / 4.0  # Raw helpfulness average
 
-        # Determine severity penalty based on the *maximum* severity (current logic)
-        severity_penalty = 0.0 # Default penalty to 0
-        if apply_severity_penalty_in_training:
-            ahimsa_severity = a_result.get("severity", "none")
-            dharma_severity = d_result.get("severity", "none")
+            # No severity penalties applied
+            severity_penalty = 0.0
 
-            severity_map = {"none": 0, "minor": 1, "major": 2}
-            max_severity_level = max(severity_map.get(ahimsa_severity, 0), severity_map.get(dharma_severity, 0))
+            # Apply weights but no policy penalties
+            weighted_sum = (
+                (a_score * weights["ahimsa"]) +
+                (d_score * weights["dharma"]) +
+                (h_score * weights["helpfulness"])
+            )
+            combined = weighted_sum / sum(weights.values())
 
-            if max_severity_level == 2: # major
-                severity_penalty = -1.0
-            elif max_severity_level == 1: # minor
-                severity_penalty = -0.5
+            # Enhanced debug logging for reward_only mode
+            raw_scores = {
+                "A": a_score,
+                "D": d_score,
+                "H": h_score
+            }
+            penalties = {
+                "scope": "bypassed",
+                "severity": "bypassed"
+            }
+            calculation = f"({a_score:.3f}×{weights['ahimsa']:.1f} + {d_score:.3f}×{weights['dharma']:.1f} + {h_score:.3f}×{weights['helpfulness']:.1f}) = {combined:.3f}"
 
-        # Apply weights and penalties (current logic)
-        weighted_sum = (
-            (a_score * weights["ahimsa"]) +
-            (d_score * weights["dharma"]) +
-            (h_score * weights["helpfulness"])
-        )
-        # Normalize by sum of weights only, then add severity penalty
-        combined = (weighted_sum / sum(weights.values())) + severity_penalty
+            # Calculate what other modes would give for comparison
+            scope_penalty_factor = d_result.get("scope_penalty_factor", 1.0)
+            final_helpfulness_score = h_result.get("helpfulness_score", 0.0)  # Final score with scope penalties
+            full_mode_score = ((a_result.get("ahimsa_score", 0.0) * weights["ahimsa"]) +
+                              (d_result.get("dharma_score", 0.0) * weights["dharma"]) +
+                              (final_helpfulness_score * weights["helpfulness"])) / sum(weights.values())
+            policy_mode_score = scope_penalty_factor + severity_penalty
 
-        if False:
-            # Set to minimum reward if scope penalty is zero
-            if scope_penalty_factor == 0.0:
-                combined = -1.0
+            cross_mode_scores = {
+                "full": full_mode_score,
+                "reward_only": combined,
+                "policy_only": policy_mode_score
+            }
+
+            log_ablation_debug(
+                mode=ablation_mode,
+                item_idx=i,
+                batch_size=len(ahimsa_results),
+                raw_scores=raw_scores,
+                penalties=penalties,
+                selected_score=combined,
+                calculation=calculation,
+                cross_mode_scores=cross_mode_scores
+            )
+
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Prompt {i}: mode=reward_only, harm_avoid={harm_avoidance:.3f}, safety_ctx={safety_context:.3f}, "
+                           f"a_score={a_score:.3f}, d_score={d_score:.3f}, h_score={h_score:.3f}, final_reward={combined:.3f}")
+
+        elif ablation_mode == "policy_only":
+            # Use only policy penalties, ignore LLM scores
+            # Extract penalty factors
+            scope_penalty_factor = d_result.get("scope_penalty_factor", 1.0)
+
+            # Determine severity penalty
+            severity_penalty = 0.0
+            if apply_severity_penalty_in_training:
+                ahimsa_severity = a_result.get("severity", "none")
+                dharma_severity = d_result.get("severity", "none")
+
+                severity_map = {"none": 0, "minor": 1, "major": 2}
+                max_severity_level = max(severity_map.get(ahimsa_severity, 0), severity_map.get(dharma_severity, 0))
+
+                if max_severity_level == 2:  # major
+                    severity_penalty = -1.0
+                elif max_severity_level == 1:  # minor
+                    severity_penalty = -0.5
+
+            # Binary compliance signal: product of penalty factors plus severity penalty
+            combined = scope_penalty_factor + severity_penalty
+
+            # Enhanced debug logging for policy_only mode
+            raw_scores = {
+                "A": "ignored",
+                "D": "ignored",
+                "H": "ignored"
+            }
+            penalties = {
+                "scope": scope_penalty_factor,
+                "severity": severity_penalty
+            }
+            calculation = f"{scope_penalty_factor:.3f} + {severity_penalty:.3f} = {combined:.3f}"
+
+            # Calculate what other modes would give for comparison
+            harm_avoidance = a_result.get("harm_avoidance_score", 0.0)
+            safety_context = a_result.get("safety_context_score", 0.0)
+            a_score = (harm_avoidance + safety_context) / 2.0
+            d_score = d_result.get("domain_adherence_score", 0.0)
+
+            # Extract raw helpfulness score for reward_only comparison
+            clarity = h_result.get("clarity_score", 0.0)
+            completeness = h_result.get("completeness_score", 0.0)
+            relevance = h_result.get("relevance_score", 0.0)
+            empathy = h_result.get("empathy_score", 0.0)
+            raw_h_score = (clarity + completeness + relevance + empathy) / 4.0
+
+            final_helpfulness_score = h_result.get("helpfulness_score", 0.0)  # Final score with scope penalties
+
+            reward_only_score = ((a_score * weights["ahimsa"]) +
+                                (d_score * weights["dharma"]) +
+                                (raw_h_score * weights["helpfulness"])) / sum(weights.values())
+            full_mode_score = ((a_result.get("ahimsa_score", 0.0) * weights["ahimsa"]) +
+                              (d_result.get("dharma_score", 0.0) * weights["dharma"]) +
+                              (final_helpfulness_score * weights["helpfulness"])) / sum(weights.values())
+
+            cross_mode_scores = {
+                "full": full_mode_score,
+                "reward_only": reward_only_score,
+                "policy_only": combined
+            }
+
+            log_ablation_debug(
+                mode=ablation_mode,
+                item_idx=i,
+                batch_size=len(ahimsa_results),
+                raw_scores=raw_scores,
+                penalties=penalties,
+                selected_score=combined,
+                calculation=calculation,
+                cross_mode_scores=cross_mode_scores
+            )
+
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Prompt {i}: mode=policy_only, scope_penalty={scope_penalty_factor:.3f}, "
+                           f"severity_penalty={severity_penalty:.3f}, final_reward={combined:.3f}")
+
+        else:  # ablation_mode == "full" (default)
+            # Current behavior: LLM scores × policy penalties
+            a_score = a_result.get("ahimsa_score", 0.0)
+            d_score = d_result.get("dharma_score", 0.0)
+            h_score = h_result.get("helpfulness_score", 0.0)
+
+            if VERBOSE_LOGGING and evaluator == "gemini":
+                logger.info(f"[combined_reward_trl DEBUG] Item {i}: Extracted Ahimsa score: {a_score}")
+
+            # Get scope penalty factor if available
+            scope_penalty_factor = d_result.get("scope_penalty_factor", 1.0)
+
+            # Apply scope penalty to all component scores if needed
+            if scope_penalty_factor < 1.0:
+                # Apply scope penalty to ahimsa and helpfulness scores
+                a_score = a_score * scope_penalty_factor
+                h_score = h_score * scope_penalty_factor
+
+                # Log the scope penalty application
+                logger.info(f"Applied scope penalty factor {scope_penalty_factor:.2f} to all component scores")
+
+            # Determine severity penalty based on the *maximum* severity (current logic)
+            severity_penalty = 0.0 # Default penalty to 0
+            if apply_severity_penalty_in_training:
+                ahimsa_severity = a_result.get("severity", "none")
+                dharma_severity = d_result.get("severity", "none")
+
+                severity_map = {"none": 0, "minor": 1, "major": 2}
+                max_severity_level = max(severity_map.get(ahimsa_severity, 0), severity_map.get(dharma_severity, 0))
+
+                if max_severity_level == 2: # major
+                    severity_penalty = -1.0
+                elif max_severity_level == 1: # minor
+                    severity_penalty = -0.5
+
+            # Apply weights and penalties (current logic)
+            weighted_sum = (
+                (a_score * weights["ahimsa"]) +
+                (d_score * weights["dharma"]) +
+                (h_score * weights["helpfulness"])
+            )
+            # Normalize by sum of weights only, then add severity penalty
+            combined = (weighted_sum / sum(weights.values())) + severity_penalty
+
+            # Enhanced debug logging for full mode
+            raw_scores = {
+                "A": a_score,
+                "D": d_score,
+                "H": h_score
+            }
+            penalties = {
+                "scope": scope_penalty_factor,
+                "severity": severity_penalty
+            }
+            calculation = f"({a_score:.3f}×{weights['ahimsa']:.1f} + {d_score:.3f}×{weights['dharma']:.1f} + {h_score:.3f}×{weights['helpfulness']:.1f}) + {severity_penalty:.3f} = {combined:.3f}"
+
+            # Calculate what other modes would give for comparison
+            harm_avoidance = a_result.get("harm_avoidance_score", 0.0)
+            safety_context = a_result.get("safety_context_score", 0.0)
+            raw_a_score = (harm_avoidance + safety_context) / 2.0
+            raw_d_score = d_result.get("domain_adherence_score", 0.0)
+
+            # Extract raw helpfulness score for reward_only comparison
+            clarity = h_result.get("clarity_score", 0.0)
+            completeness = h_result.get("completeness_score", 0.0)
+            relevance = h_result.get("relevance_score", 0.0)
+            empathy = h_result.get("empathy_score", 0.0)
+            raw_h_score = (clarity + completeness + relevance + empathy) / 4.0
+
+            reward_only_score = ((raw_a_score * weights["ahimsa"]) +
+                                (raw_d_score * weights["dharma"]) +
+                                (raw_h_score * weights["helpfulness"])) / sum(weights.values())
+            policy_only_score = scope_penalty_factor + severity_penalty
+
+            cross_mode_scores = {
+                "full": combined,
+                "reward_only": reward_only_score,
+                "policy_only": policy_only_score
+            }
+
+            log_ablation_debug(
+                mode=ablation_mode,
+                item_idx=i,
+                batch_size=len(ahimsa_results),
+                raw_scores=raw_scores,
+                penalties=penalties,
+                selected_score=combined,
+                calculation=calculation,
+                cross_mode_scores=cross_mode_scores
+            )
 
         # Optional: Clamp reward range if needed
         combined = max(-1.0, min(1.0, combined)) # Example clamp to [-1, 1]
