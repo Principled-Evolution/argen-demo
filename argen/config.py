@@ -43,9 +43,9 @@ ENHANCED_SYSTEM_PROMPT = (
 )
 
 # Dataset paths
-DEFAULT_SCENARIOS_PATH = "data/combined_training_updated.jsonl"
-DEFAULT_VALIDATION_SCENARIOS_PATH = "data/final-2025-05-08/benchmarking_20250507_174208-reevaluated-tiers.jsonl"
-DEFAULT_OUTPUT_BASE = "logs/baseline_openai_results"
+DEFAULT_SCENARIOS_PATH = "data/sample-data/dummy_train.jsonl"
+DEFAULT_VALIDATION_SCENARIOS_PATH = "data/sample-data/dummy_eval.jsonl"
+DEFAULT_OUTPUT_BASE = "output/baseline_results"
 
 # OpenAI Evaluation configuration
 OPENAI_EVAL_MODEL = "gpt-4o-mini"
@@ -117,7 +117,7 @@ PENALTY_CONFIG = {
 # GRPO training configuration
 GRPO_CONFIG = {
     # ── static run settings ───────────────────────────────────────────────────
-    "output_dir": "/mnt/checkpoints/grpo_run",
+    "output_dir": "output/grpo_run",
 
     # ── GRPO hyper-params ────────────────────────────────────────────────────
     "beta": 0.10,                    # stronger KL penalty

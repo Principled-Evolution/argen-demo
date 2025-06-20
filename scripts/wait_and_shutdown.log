@@ -1,7 +1,0 @@
-[2025-05-16 19:27:21] Starting monitoring script for PID 85123
-[2025-05-16 19:27:21] PID 85123 found. Monitoring...
-[2025-05-16 20:27:25] PID 85123 is still running. Check count: 360
-[2025-05-16 21:26:09] Process 85123 finished.
-[2025-05-16 21:26:09] Syncing disks...
-[2025-05-16 21:26:09] Disk sync complete.
-[2025-05-16 21:26:09] Shutting down the VM now.
