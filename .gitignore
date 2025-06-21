@@ -63,7 +63,9 @@ env/
 Thumbs.db
 
 .env
-.env*
+.env.local
+.env.*.local
+!.env.example
 argen-demo.code-workspace
 
 # Large model files and checkpoints
